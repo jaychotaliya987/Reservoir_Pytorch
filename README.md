@@ -1,5 +1,7 @@
-# Reservoir Comp
+# Reservoir_PyTorch
 
-This is a repository preping the project on running a reservoire computing model on multiple machines. This will potentially improve the memory demand of the reservoire computing.
+This repository is dedicated to preparing a project that involves running a reservoir computing model across multiple machines. The goal is to potentially reduce the memory requirements of reservoir computing.
 
-Beware that this is just a basic learning and exploring repository. It will hardly benifit anyone, This is my learning tracking repo. Maybe I will upload initial work.
+Please note that this repository serves primarily as a personal learning and exploration space. It is unlikely to provide significant benefits to others. It will be used to track my learning progress and may include initial work.
+
+Additionally, I plan to create some small projects with convolutional neural networks using PyTorch here.
