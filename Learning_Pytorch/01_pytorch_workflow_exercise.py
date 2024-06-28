@@ -12,7 +12,7 @@ RANDOM_SEED = 42
 X = torch.arange(0, 1, 0.001, dtype = torch.float32).unsqueeze(dim=1) 
 y = weight * X + bias 
 
-#*splitting the data
+#*Splitting the data
 split = int(0.8 * len(X))
 X_train, X_test = X[:split], X[split:]
 y_train, y_test = y[:split], y[split:]
