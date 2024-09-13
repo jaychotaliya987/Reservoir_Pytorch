@@ -1,4 +1,3 @@
-#! ignoring the vscode and venv folders
+#! ignoring the vscode folder
 
 .vscode/
-torch/
