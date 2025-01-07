@@ -14,9 +14,13 @@ from Datasets.MackeyGlass import MackeyGlass
 
 print("Imports Done!")
 
-Mglass1 = MackeyGlass2DDataset(20, 100, 0.1, 1)
+Mglass1 = MackeyGlass2DDataset(20, 100, 17, 1)
 Mglass2 = MackeyGlassDataset(20, 100)
 
 
-print(Mglass2.__len__())
-print(Mglass2.__getitem__(1))
+
+print(Mglass1.__len__())
+print(Mglass1.__getitem__(1))
+
+
+
