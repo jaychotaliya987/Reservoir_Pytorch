@@ -33,6 +33,8 @@ class MackeyGlass2DDataset(Dataset):
         # Init seed if needed
         if seed is not None:
             torch.manual_seed(seed)
+        
+        print("MackeyGlass2DDataset loaded with sample_len = ", sample_len)
         # end if
 
     # end __init__
