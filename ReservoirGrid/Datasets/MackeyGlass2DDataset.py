@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-#
-
 # Imports
 import torch
 from torch.utils.data.dataset import Dataset
@@ -13,7 +10,9 @@ class MackeyGlass2DDataset(Dataset):
     """
 
     # Constructor
-    def __init__(self, sample_len, n_samples, tau, subsample_rate, normalize=False, seed=None):
+    def __init__(
+        self, sample_len, n_samples, tau, subsample_rate, normalize=False, seed=None
+    ):
         """
         Constructor
         :param sample_len: Length of the time-series in time steps.
@@ -27,7 +26,7 @@ class MackeyGlass2DDataset(Dataset):
         self.tau = tau
         self.delta_t = 10
         self.timeseries = 1.2
-        self.history_len = tau * self.delta_t
+        self.history_len = int (tau * self.delta_t)
         self.subsample_rate = subsample_rate
         self.normalize = normalize
 
@@ -35,6 +34,7 @@ class MackeyGlass2DDataset(Dataset):
         if seed is not None:
             torch.manual_seed(seed)
         # end if
+
     # end __init__
 
     # Length
@@ -44,6 +44,7 @@ class MackeyGlass2DDataset(Dataset):
         :return:
         """
         return self.n_samples
+
     # end __len__
 
     # Get item
@@ -59,7 +60,9 @@ class MackeyGlass2DDataset(Dataset):
         samples = list()
 
         # History
-        history = 1.2 * torch.ones(self.history_len) + 0.2 * (torch.rand(self.history_len) - 0.5)
+        history = 1.2 * torch.ones(self.history_len) + 0.2 * (
+            torch.rand(self.history_len) - 0.5
+        )
 
         # For each sample
         for n in range(self.n_samples):
@@ -72,7 +75,11 @@ class MackeyGlass2DDataset(Dataset):
                 for _ in range(self.delta_t * self.subsample_rate):
                     step = step + 1
                     tauval = history[step % self.history_len]
-                    newval = oldval + (0.2 * tauval / (1.0 + tauval**10) - 0.1 * oldval) / self.delta_t
+                    newval = (
+                        oldval
+                        + (0.2 * tauval / (1.0 + tauval**10) - 0.1 * oldval)
+                        / self.delta_t
+                    )
                     history[step % self.history_len] = oldval
                     oldval = newval
                 # end for
@@ -84,7 +91,10 @@ class MackeyGlass2DDataset(Dataset):
             if self.normalize:
                 maxval = torch.max(sample, dim=0)
                 minval = torch.min(sample, dim=0)
-                sample = torch.mm(torch.inv(torch.diag(maxval - minval)), (sample - minval.repeat(total_size, 1)))
+                sample = torch.mm(
+                    torch.inv(torch.diag(maxval - minval)),
+                    (sample - minval.repeat(total_size, 1)),
+                )
             # end if
 
             # Append
@@ -93,6 +103,8 @@ class MackeyGlass2DDataset(Dataset):
 
         # Squash timeseries through tanh
         return samples
+
     # end __getitem__
+
 
 # end MackeyGlassDataset
