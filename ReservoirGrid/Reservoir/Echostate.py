@@ -15,7 +15,6 @@ class EchoStates(nn.RNN):
     pass
 
 
-
-
-
 print("Echo State Module Loaded")
+
+
