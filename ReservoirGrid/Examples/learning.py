@@ -13,11 +13,9 @@ from Reservoir import Echostate
 
 from torch.utils.data import DataLoader
 
-
 print("Imports Done!")
 
+
 Mglass1 = MackeyGlass2DDataset(20, 100, 17, 1)
-
-
 
 
