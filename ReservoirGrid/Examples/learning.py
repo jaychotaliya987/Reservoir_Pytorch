@@ -18,4 +18,4 @@ print("Imports Done!")
 
 Mglass1 = MackeyGlass2DDataset(20, 100, 17, 1)
 
-
+Echostate1 = Echostate.EchoStates(1, 100, num_layers=1, batch_first=True)
