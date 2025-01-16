@@ -26,7 +26,6 @@ class MackeyGlass2DDataset(Dataset):
         self.tau = tau
         self.delta_t = 10
         self.timeseries = 1.2
-        self.history_len = int (tau * self.delta_t)
         self.subsample_rate = subsample_rate
         self.normalize = normalize
 
