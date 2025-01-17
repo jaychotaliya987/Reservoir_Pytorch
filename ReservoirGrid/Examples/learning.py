@@ -1,4 +1,6 @@
 import torch
+from torch import nn
+from torch import optim
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -13,9 +15,12 @@ from Reservoir import Echostate
 
 from torch.utils.data import DataLoader
 
-print("Imports Done!")
+print("Imports Done!\n")
 
 
 Mglass1 = MackeyGlass2DDataset(20, 100, 17, 1)
 
 Echostate1 = Echostate.EchoStates(1, 100, num_layers=1, batch_first=True)
+
+
+
