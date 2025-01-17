@@ -19,6 +19,7 @@ class EchoStates(nn.RNN):
 
         # Customize the initialization of the recurrent weights
         self.reset_parameters()
+        print("Echo State Module Loaded \n")
 
     def reset_parameters(self):
         for name, param in self.named_parameters():
@@ -27,8 +28,8 @@ class EchoStates(nn.RNN):
             elif 'weight_hh' in name:
                 nn.init.orthogonal_(param)
             elif 'bias' in name:
-                fan_in, _ = nn.init._calculate_fan_in_and_fan_out(param)
-                bound = 1 / math.sqrt(fan_in)
+                #fan_in, _ = nn.init._calculate_fan_in_and_fan_out(param)
+                bound = 1 / math.sqrt(param.size(0))
                 nn.init.uniform_(param, -bound, bound)
 
     def forward(self, x, h_0=None):
@@ -39,6 +40,5 @@ class EchoStates(nn.RNN):
             output = output.transpose(0, 1)
         return output, h_n
 
-print("Echo State Module Loaded")
 
 

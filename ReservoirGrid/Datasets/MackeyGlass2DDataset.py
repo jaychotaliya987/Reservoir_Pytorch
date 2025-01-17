@@ -18,7 +18,7 @@ class MackeyGlass2DDataset(Dataset):
         :param sample_len: Length of the time-series in time steps.
         :param n_samples: Number of samples to generate.
         :param tau: Delay of the MG with commonly used value of tau=17 (mild chaos) and tau=30 is moderate chaos.
-        :param seed: Seed of random number generator.
+        :param seed: Seed of random number generator. 
         """
         # Properties
         self.sample_len = sample_len
@@ -33,7 +33,7 @@ class MackeyGlass2DDataset(Dataset):
         if seed is not None:
             torch.manual_seed(seed)
         
-        print("MackeyGlass2DDataset loaded with sample_len = ", sample_len)
+        print("MackeyGlass2DDataset loaded with sample_len = ", sample_len , "\n")
         # end if
 
     # end __init__
