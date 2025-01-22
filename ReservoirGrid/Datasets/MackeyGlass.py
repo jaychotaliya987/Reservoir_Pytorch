@@ -47,7 +47,8 @@ class MackeyGlass(torch.utils.data.Dataset):
             else:
                 dxdt[i] = self.Beta*dxdt[i-1]/(1+dxdt[i-1]**self.Alpha) - self.Gamma*dxdt[i-1]
 
-        #data = solve_ivp(dxdt, [0, self.T_max], method='RK45', t_eval=numpy.arange(0, self.T_max, self.Dt))
-
+        data = solve_ivp(lambda t, y: numpy.interp(t - self.Tau, numpy.arange(0, self.T_max, self.Dt), dxdt), 
+                         [0, self.T_max], y0=[self.History], method='RK45', 
+                         t_eval=numpy.arange(0, self.T_max, self.Dt))
 
         return data 

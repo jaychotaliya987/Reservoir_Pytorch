@@ -11,7 +11,7 @@ class MackeyGlass2DDataset(Dataset):
 
     # Constructor
     def __init__(
-        self, sample_len, n_samples, tau, subsample_rate, normalize=False, seed=None
+        self, sample_len, n_samples, tau = 17, subsample_rate = 1, normalize=False, seed=None
     ):
         """
         Constructor
@@ -26,7 +26,7 @@ class MackeyGlass2DDataset(Dataset):
         self.tau = tau
         self.delta_t = 10
         self.timeseries = 1.2
-        self.subsample_rate = subsample_rate
+        self.subsample_rate = subsample_rate  
         self.normalize = normalize
 
         # Init seed if needed

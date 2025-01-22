@@ -24,7 +24,7 @@ class EchoStates(nn.RNN):
     def reset_parameters(self):
         for name, param in self.named_parameters():
             if 'weight_ih' in name:
-                nn.init.kaiming_uniform_(param, a=math.sqrt(5))
+                nn.init.kaiming_uniform_(param, a= math.sqrt(5))
             elif 'weight_hh' in name:
                 nn.init.orthogonal_(param)
             elif 'bias' in name:
@@ -39,6 +39,5 @@ class EchoStates(nn.RNN):
         if self.batch_first:
             output = output.transpose(0, 1)
         return output, h_n
-
 
 
