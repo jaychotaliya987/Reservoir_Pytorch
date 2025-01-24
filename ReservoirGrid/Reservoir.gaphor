@@ -46,7 +46,7 @@
 <val>(1.0, 0.0, 0.0, 1.0, 214.99998474121094, -53.5)</val>
 </matrix>
 <points>
-<val>[(-43.0, 150.7368567032683), (111.00000762939453, 151.65960634287762)]</val>
+<val>[(-43.0, 150.7368567032683), (111.00000762939453, 152.65960634287754)]</val>
 </points>
 <head-connection>
 <ref refid="6a764e10-92d6-11ef-aeb7-7d957a3dd7c9"/>
@@ -78,7 +78,7 @@
 <val>(1.0, 0.0, 0.0, 1.0, 215.7777625189887, -180.36018218220246)</val>
 </matrix>
 <points>
-<val>[(465.22222985161676, 278.5197885250801), (691.2222069634331, 278.5197885250801)]</val>
+<val>[(465.22222985161676, 279.51978852508006), (574.3019311968658, 278.5197885250801)]</val>
 </points>
 <head-connection>
 <ref refid="6878d69d-92d5-11ef-a10b-7d957a3dd7c9"/>
@@ -129,7 +129,7 @@
 </Class>
 <ClassItem id="6f8c0132-92d5-11ef-86c7-7d957a3dd7c9">
 <matrix>
-<val>(1.0, 0.0, 0.0, 1.0, 910.9986561419498, 34.3264395019453)</val>
+<val>(1.0, 0.0, 0.0, 1.0, 794.0783803753826, 34.3264395019453)</val>
 </matrix>
 <top-left>
 <val>(-3.998686659527948, -34.32643950194529)</val>
@@ -184,7 +184,7 @@
 <val>130.00000762939453</val>
 </width>
 <height>
-<val>70.0</val>
+<val>72.0</val>
 </height>
 <diagram>
 <ref refid="58d6c536-66f8-11ec-b4c8-0456e5e540ed"/>
@@ -276,6 +276,7 @@
 <ref refid="d1bda384-92d5-11ef-92b6-7d957a3dd7c9"/>
 <ref refid="ccf0c27d-92d6-11ef-8bc1-7d957a3dd7c9"/>
 <ref refid="9ea53557-9390-11ef-bccd-415fe1975654"/>
+<ref refid="1b6f0a91-d8c7-11ef-a3f6-4cd717a34573"/>
 </reflist>
 </ownedOperation>
 <package>
@@ -289,7 +290,7 @@
 </Class>
 <ClassItem id="6878d69d-92d5-11ef-a10b-7d957a3dd7c9">
 <matrix>
-<val>(1.0, 0.0, 0.0, 1.0, 325.99999237060547, -1.7763568394002505e-15)</val>
+<val>(1.0, 0.0, 0.0, 1.0, 325.99999237060547, 0.9999999999999285)</val>
 </matrix>
 <top-left>
 <val>(0.0, 0.0)</val>
@@ -390,7 +391,7 @@
 <ref refid="68784eec-92d5-11ef-a21b-7d957a3dd7c9"/>
 </class_>
 <name>
-<val>InitReservoirState</val>
+<val></val>
 </name>
 </Operation>
 <Operation id="ccf0c27d-92d6-11ef-8bc1-7d957a3dd7c9">
@@ -403,21 +404,10 @@
 <ownedParameter>
 <reflist>
 <ref refid="ccf219cf-92d6-11ef-8877-7d957a3dd7c9"/>
-<ref refid="ccf30240-92d6-11ef-b553-7d957a3dd7c9"/>
+<ref refid="f4d3de7a-d8c6-11ef-8669-4cd717a34573"/>
 </reflist>
 </ownedParameter>
 </Operation>
-<Parameter id="ccf30240-92d6-11ef-b553-7d957a3dd7c9">
-<direction>
-<val>in</val>
-</direction>
-<name>
-<val>reservoir_state</val>
-</name>
-<ownerFormalParam>
-<ref refid="ccf0c27d-92d6-11ef-8bc1-7d957a3dd7c9"/>
-</ownerFormalParam>
-</Parameter>
 <Parameter id="ccf219cf-92d6-11ef-8877-7d957a3dd7c9">
 <direction>
 <val>in</val>
@@ -805,7 +795,7 @@
 <val>130.00000762939453</val>
 </width>
 <height>
-<val>70.0</val>
+<val>72.0</val>
 </height>
 <diagram>
 <ref refid="58d6c536-66f8-11ec-b4c8-0456e5e540ed"/>
@@ -979,9 +969,44 @@
 </name>
 <ownedType>
 <reflist>
-<ref refid="a1a435c6-cd16-11ef-9a1c-d5f81b2b9cc9"/>
 <ref refid="6a75d02e-92d6-11ef-bbae-7d957a3dd7c9"/>
+<ref refid="a1a435c6-cd16-11ef-9a1c-d5f81b2b9cc9"/>
 </reflist>
 </ownedType>
 </Package>
+<Parameter id="f4d3de7a-d8c6-11ef-8669-4cd717a34573">
+<direction>
+<val>in</val>
+</direction>
+<name>
+<val>Reservoir States</val>
+</name>
+<ownerFormalParam>
+<ref refid="ccf0c27d-92d6-11ef-8bc1-7d957a3dd7c9"/>
+</ownerFormalParam>
+</Parameter>
+<Operation id="1b6f0a91-d8c7-11ef-a3f6-4cd717a34573">
+<class_>
+<ref refid="68784eec-92d5-11ef-a21b-7d957a3dd7c9"/>
+</class_>
+<name>
+<val>Init_Reservoir_States</val>
+</name>
+<ownedParameter>
+<reflist>
+<ref refid="1b7042b8-d8c7-11ef-897c-4cd717a34573"/>
+</reflist>
+</ownedParameter>
+</Operation>
+<Parameter id="1b7042b8-d8c7-11ef-897c-4cd717a34573">
+<direction>
+<val>in</val>
+</direction>
+<name>
+<val>Reservoir_size</val>
+</name>
+<ownerFormalParam>
+<ref refid="1b6f0a91-d8c7-11ef-a3f6-4cd717a34573"/>
+</ownerFormalParam>
+</Parameter>
 </gaphor>
