@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-#
-
 # Imports
 import torch
 from torch.utils.data.dataset import Dataset
