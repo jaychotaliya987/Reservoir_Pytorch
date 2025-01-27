@@ -73,7 +73,7 @@ class ESN(nn.Module):
         :param u: Input sequence (T x input_dim)
         :param future: Number of future predictions
         """
-
+        
         
 
 
