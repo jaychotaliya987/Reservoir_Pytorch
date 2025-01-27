@@ -66,3 +66,15 @@ class ESN(nn.Module):
 
     def Reservoir(self):
         return self.reservoir_state
+    
+    def Future_Pradictions(self, u, future = int, memory = int):
+        """
+        Returns future predictions of the model
+        :param u: Input sequence (T x input_dim)
+        :param future: Number of future predictions
+        """
+
+        
+
+
+        return Predictions
