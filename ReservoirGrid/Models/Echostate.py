@@ -64,17 +64,79 @@ class ESN(nn.Module):
         self.W_in.requires_grad = False
         self.W.requires_grad = False
 
-    def Reservoir(self):
+    def Unfreeze_reservoir(self):
+        # Ensure W_in and W are trainable
+        self.W_in.requires_grad = True
+        self.W.requires_grad = True
+
+    def __get_reservoir_states__(self):
         return self.reservoir_state
     
-    def Future_Pradictions(self, u, future = int, memory = int):
+    def Pradictions(self, u, future = int, memory = int):
         """
         Returns future predictions of the model
         :param u: Input sequence (T x input_dim)
         :param future: Number of future predictions
+        :param memory: Number of previous time steps to remember
         """
         
+        predictions = []
+        device = u.device
+
+        self.reservoir_state = self.reservoir_state.to(device)  # Ensure reservoir state is on the same device
+
+        for t in range 
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+
+
+        return predictions[:]
+    
+    def Train(self, dataset = torch.tensor, epochs = int, lr = float, 
+              criterion = nn.MSELoss, optimizer = optim.Adam, print_every = int):
+        """
+        Trains the model
+        :param dataset: Dataset for training
+        :param epochs: Number of epochs
+        :param lr: Learning rate
+        """
+        # Define loss function and optimizer
+        criterion = criterion()
+        optimizer = optimizer(self.parameters(), lr=lr)
         
+        # Create DataLoader
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
+        # Train model
+        for epoch in range(epochs):
+            for x in data_loader:
+                optimizer.zero_grad()
+                y = self(x)
+                loss = criterion(y, x)
+                loss.backward()
+                optimizer.step()
+            if epoch % print_every == 0:
+                print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item()}')
 
-        return Predictions
+    def Plots(self, u, future = int, memory = int):
+        """
+        Plots the model's predictions
+        :param u: Input sequence (T x input_dim)
+        :param future: Number of future predictions
+        :param memory: Number of previous time steps to remember
+        """
+        predictions = self.Predictions(u, future, memory)
+        plt.plot(u, label='Input')
+        plt.plot(range(len(u), len(u) + future), predictions, label='Predictions')
+        plt.legend()
+        plt.show()
+        
+        return predictions
