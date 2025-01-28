@@ -55,14 +55,5 @@ print(f"Model is on: {next(esn.parameters()).device}")
 print(f"Inputs are on: {inputs.device}")
 print(f"Targets are on: {targets.device}")
 
-for epoch in range(epochs):
-    optimizer.zero_grad()
-    outputs = esn(inputs)  # Forward pass
-    loss = criterion(outputs, inputs)  # Compute loss
-    loss.backward()  # Backpropagate
-    optimizer.step()  # Update only the readout layer
-    
-    if epoch % 10 == 0:
-        print(f"Epoch {epoch+1}, Loss: {loss.item()}")
-    if epoch == epochs - 1:
-        print(f"Final loss: {loss.item()}")
+esn.Train(dataset= inputs, epochs=30, lr=0.0001, 
+          criterion=nn.MSELoss, print_every=5)
