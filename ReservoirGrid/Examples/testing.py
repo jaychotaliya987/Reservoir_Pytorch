@@ -13,6 +13,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
 from Datasets.MackeyGlassDataset import MackeyGlassDataset
 from Models.Echostate import ESN
+import os
 
 print("Imports Done!\n")
 
@@ -55,5 +56,21 @@ print(f"Model is on: {next(esn.parameters()).device}")
 print(f"Inputs are on: {inputs.device}")
 print(f"Targets are on: {targets.device}")
 
-esn.Train(dataset= inputs, epochs=30, lr=0.0001, 
-          criterion=nn.MSELoss, print_every=5)
+model_path = "/home/raged_pi/Project/ReservoirComp/ReservoirGrid/Examples/esn_model.pth"
+
+if os.path.exists(model_path):
+    esn.load_state_dict(torch.load(model_path))
+    print("Model loaded from disk.")
+else:
+    esn.Train(dataset=inputs, epochs=30, lr=0.0001, 
+              criterion=nn.MSELoss, print_every=5)
+    torch.save(esn.state_dict(), model_path)
+    print("Model trained and saved to disk.")
+
+last_layer = esn.reservoir_states[-1]
+
+esn.predict(esn.__get_reservoir_weight_matrix__,
+            esn.__get_readout__,
+            last_layer,
+            30)
+            
