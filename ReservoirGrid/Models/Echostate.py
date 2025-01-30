@@ -45,14 +45,17 @@ class ESN(nn.Module):
         """
         outputs = []  # Use a list to accumulate outputs
         device = u.device
+        self.reservoir_states = torch.tensor([]).to(device)  # Ensure reservoir state is on the same device
         self.reservoir_state = self.reservoir_state.to(device)  # Ensure reservoir state is on the same device
         
         for t in range(u.size(0)):  # Iterate through time steps
             # Update reservoir state
             self.reservoir_state = self.activation(
                 torch.matmul(self.W_in.to(device), u[t]) +
-                torch.matmul(self.W.to(device), self.reservoir_state)
-            )
+                torch.matmul(self.W.to(device), self.reservoir_state))
+            
+            self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
+            
             # Compute output
             y = self.readout(self.reservoir_state)
             outputs.append(y)
@@ -70,35 +73,43 @@ class ESN(nn.Module):
         self.W.requires_grad = True
 
     def __get_reservoir_states__(self):
+        return self.reservoir_states
+    
+    def __get_reservoir_state__(self):
         return self.reservoir_state
-    
-    def Pradictions(self, u, future = int, memory = int):
-        """
-        Returns future predictions of the model
-        :param u: Input sequence (T x input_dim)
-        :param future: Number of future predictions
-        :param memory: Number of previous time steps to remember
-        """
         
+    def __get_readout__(self):
+        return self.readout
+    
+    def __get_reservoir_weight_matrix__(self):
+        return self.W
+    
+
+    
+    def predict(W, readout, x_last, steps):
+        """
+        Predict future outputs using an ESN in autonomous mode.
+
+        Args:
+            W (torch.Tensor): Reservoir weight matrix (N_res x N_res)
+            readout (torch.Tensor): Output weight matrix (N_out x N_res)
+            x_last (torch.Tensor): Last reservoir state from training (N_res,)
+            steps (int): Number of time steps to predict
+
+        Returns:
+            torch.Tensor: Predicted outputs of shape (steps, N_out)
+        """
         predictions = []
-        device = u.device
+        x = x_last.clone()  # Start from the last trained state
 
-        self.reservoir_state = self.reservoir_state.to(device)  # Ensure reservoir state is on the same device
+        for _ in range(steps):
+            y_pred = W_out @ x  # Compute output
+            predictions.append(y_pred.unsqueeze(0))  # Store result
+            x = torch.tanh(W_res @ x + W_out.T @ y_pred)  # Update reservoir state
 
-        for t in range 
-    
-    
-    
-    
-    
-    
-    
-    
+        return torch.cat(predictions, dim=0)  # Convert list to tensor  
 
 
-
-
-        return predictions[:]
     
     def Train(self, dataset = torch.tensor, epochs = int, lr = float, 
               criterion = nn.MSELoss, optimizer = optim.Adam, print_every = int):
@@ -125,7 +136,20 @@ class ESN(nn.Module):
                 optimizer.step()
             if epoch % print_every == 0:
                 print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item()}')
-
+    def Save_model(self, path = str):
+        """
+        Saves the model
+        :param path: Path to save the model
+        """
+        torch.save(self.state_dict(), path)
+    
+    def Load_model(self, path = str):
+        """
+        Loads the model
+        :param path: Path to load the model
+        """
+        self.load_state_dict(torch.load(path))
+    
     def Plots(self, u, future = int, memory = int):
         """
         Plots the model's predictions
