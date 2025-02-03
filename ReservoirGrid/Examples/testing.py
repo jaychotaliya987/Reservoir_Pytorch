@@ -74,3 +74,4 @@ esn.predict(esn.__get_reservoir_weight_matrix__,
             last_layer,
             30)
             
+print("Prediction Done!\n")

@@ -62,55 +62,7 @@ class ESN(nn.Module):
         
         return torch.stack(outputs)  # Convert list to tensor
     
-    def freeze_reservoir(self):
-        # Ensure W_in and W are fixed
-        self.W_in.requires_grad = False
-        self.W.requires_grad = False
 
-    def Unfreeze_reservoir(self):
-        # Ensure W_in and W are trainable
-        self.W_in.requires_grad = True
-        self.W.requires_grad = True
-
-    def __get_reservoir_states__(self):
-        return self.reservoir_states
-    
-    def __get_reservoir_state__(self):
-        return self.reservoir_state
-        
-    def __get_readout__(self):
-        return self.readout
-    
-    def __get_reservoir_weight_matrix__(self):
-        return self.W
-    
-
-    
-    def predict(W, readout, x_last, steps):
-        """
-        Predict future outputs using an ESN in autonomous mode.
-
-        Args:
-            W (torch.Tensor): Reservoir weight matrix (N_res x N_res)
-            readout (torch.Tensor): Output weight matrix (N_out x N_res)
-            x_last (torch.Tensor): Last reservoir state from training (N_res,)
-            steps (int): Number of time steps to predict
-
-        Returns:
-            torch.Tensor: Predicted outputs of shape (steps, N_out)
-        """
-        predictions = []
-        x = x_last.clone()  # Start from the last trained state
-
-        for _ in range(steps):
-            y_pred = W_out @ x  # Compute output
-            predictions.append(y_pred.unsqueeze(0))  # Store result
-            x = torch.tanh(W_res @ x + W_out.T @ y_pred)  # Update reservoir state
-
-        return torch.cat(predictions, dim=0)  # Convert list to tensor  
-
-
-    
     def Train(self, dataset = torch.tensor, epochs = int, lr = float, 
               criterion = nn.MSELoss, optimizer = optim.Adam, print_every = int):
         """
@@ -136,6 +88,40 @@ class ESN(nn.Module):
                 optimizer.step()
             if epoch % print_every == 0:
                 print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item()}')
+
+    def Predict(W, readout, x_last, steps):
+        """
+        Predict future outputs using an ESN in autonomous mode.
+        Args:
+            W (torch.Tensor): Reservoir weight matrix (N_res x N_res)
+            readout (torch.Tensor): Output weight matrix (N_out x N_res)
+            x_last (torch.Tensor): Last reservoir state from training (N_res,)
+            steps (int): Number of time steps to predict
+        Returns:
+            torch.Tensor: Predicted outputs of shape (steps, N_out)
+        """
+        predictions = []
+        x = x_last.clone()  # Start from the last trained state
+        for _ in range(steps):
+            y_pred = W_out @ x  # Compute output
+            predictions.append(y_pred.unsqueeze(0))  # Store result
+            x = torch.tanh(W_res @ x + W_out.T @ y_pred)  # Update reservoir state
+        return torch.cat(predictions, dim=0)  # Convert list to tensor  
+
+####___________Echo State Property___________####
+
+    def freeze_reservoir(self):
+       # Ensure W_in and W are fixed
+       self.W_in.requires_grad = False
+       self.W.requires_grad = False
+
+    def Unfreeze_reservoir(self):
+        # Ensure W_in and W are trainable
+        self.W_in.requires_grad = True
+        self.W.requires_grad = True
+
+####___________Saving and Loading___________####
+
     def Save_model(self, path = str):
         """
         Saves the model
@@ -149,7 +135,9 @@ class ESN(nn.Module):
         :param path: Path to load the model
         """
         self.load_state_dict(torch.load(path))
-    
+
+####___________Plots_______________####
+  
     def Plots(self, u, future = int, memory = int):
         """
         Plots the model's predictions
@@ -164,3 +152,19 @@ class ESN(nn.Module):
         plt.show()
         
         return predictions
+
+
+####___________Get Methods___________####
+
+    def __get_reservoir_states__(self):
+        return self.reservoir_states
+
+    def __get_reservoir_state__(self):
+        return self.reservoir_state
+
+    def __get_readout__(self):
+        return self.readout
+
+    def __get_reservoir_weight_matrix__(self):
+        return self.W
+    
