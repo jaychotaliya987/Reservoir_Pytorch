@@ -76,11 +76,11 @@ class ESN(nn.Module):
         optimizer = optimizer(self.parameters(), lr=lr)
         
         # Create DataLoader
-        data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+        #data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
         # Train model
         for epoch in range(epochs):
-            for x in data_loader:
+            for x in dataset:
                 optimizer.zero_grad()
                 y = self(x)
                 loss = criterion(y, x)

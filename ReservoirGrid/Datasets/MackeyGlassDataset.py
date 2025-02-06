@@ -47,7 +47,7 @@ class MackeyGlassDataset(Dataset):
         """
         Get item
         :param idx:
-        :return:
+        :return: Tuple containing input sequence and target sequence
         """
         # History
         history = collections.deque(1.2 * torch.ones(self.history_len) + 0.2 * (torch.rand(self.history_len) - 0.5))

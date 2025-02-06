@@ -56,7 +56,7 @@ print(f"Model is on: {next(esn.parameters()).device}")
 print(f"Inputs are on: {inputs.device}")
 print(f"Targets are on: {targets.device}")
 
-model_path = "/home/raged_pi/Project/ReservoirComp/ReservoirGrid/Examples/esn_model.pth"
+model_path = "model.pth"
 
 if os.path.exists(model_path):
     esn.load_state_dict(torch.load(model_path))
@@ -67,11 +67,11 @@ else:
     torch.save(esn.state_dict(), model_path)
     print("Model trained and saved to disk.")
 
-last_layer = esn.reservoir_states[-1]
-
-esn.predict(esn.__get_reservoir_weight_matrix__,
-            esn.__get_readout__,
-            last_layer,
-            30)
+last_layer = esn.__get_reservoir_states__()
+print(last_layer.size())
+#esn.Predict(esn.__get_reservoir_weight_matrix__,
+#            esn.__get_readout__,
+#            last_layer,
+#            30)
             
-print("Prediction Done!\n")
+#print("Prediction Done!\n")
