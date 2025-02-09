@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
 class ESN(nn.Module):
@@ -63,8 +63,8 @@ class ESN(nn.Module):
         return torch.stack(outputs)  # Convert list to tensor
     
 
-    def Train(self, dataset = torch.tensor, epochs = int, lr = float, 
-              criterion = nn.MSELoss, optimizer = optim.Adam, print_every = int):
+    def Train(self, dataset: torch.tensor, targets : torch.tensor, epochs: int, lr: float, 
+              criterion=nn.MSELoss, optimizer=optim.Adam, print_every=10):
         """
         Trains the model
         :param dataset: Dataset for training
@@ -75,21 +75,26 @@ class ESN(nn.Module):
         criterion = criterion()
         optimizer = optimizer(self.parameters(), lr=lr)
         
-        # Create DataLoader
-        #data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+        # Move model to the same device as the dataset
+        device = dataset.device
+        self.to(device)
 
-        # Train model
-        for epoch in range(epochs):
-            for x in dataset:
-                optimizer.zero_grad()
-                y = self(x)
-                loss = criterion(y, x)
-                loss.backward()
-                optimizer.step()
+        # losses Tensor for plotting
+        losses = torch.tensor([]).to(device)
+
+        for epoch in range(epochs):   
+            optimizer.zero_grad()  
+            output = self(dataset)
+            loss = criterion(output, targets)
+            loss.backward()
+            optimizer.step()
+            losses = torch.cat((losses, loss.unsqueeze(0)), dim=0)
             if epoch % print_every == 0:
-                print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item()}')
-
-    def Predict(W, readout, x_last, steps):
+                print(f'Epoch {epochs}, Iteration {epoch}, Loss: {loss.item()}')
+        return losses
+        
+    
+    def Predict(self, x_last, steps):
         """
         Predict future outputs using an ESN in autonomous mode.
         Args:
@@ -100,13 +105,23 @@ class ESN(nn.Module):
         Returns:
             torch.Tensor: Predicted outputs of shape (steps, N_out)
         """
+                
         predictions = []
         x = x_last.clone()  # Start from the last trained state
         for _ in range(steps):
-            y_pred = W_out @ x  # Compute output
+            y_pred = self.readout @ x  # Compute output
             predictions.append(y_pred.unsqueeze(0))  # Store result
-            x = torch.tanh(W_res @ x + W_out.T @ y_pred)  # Update reservoir state
+            #x = torch.tanh(W_res @ x + W_out.T @ y_pred)  # Update reservoir state
         return torch.cat(predictions, dim=0)  # Convert list to tensor  
+    
+    def update_reservoir(self, u):
+        """
+        Update the reservoir state using the input sequence.
+        :param u: Input sequence (T x input_dim)
+        """
+        device = u.device
+        self.reservoir_state = u
+        self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
 
 ####___________Echo State Property___________####
 
@@ -156,15 +171,17 @@ class ESN(nn.Module):
 
 ####___________Get Methods___________####
 
-    def __get_reservoir_states__(self):
+    def res_states(self):
         return self.reservoir_states
 
-    def __get_reservoir_state__(self):
+    def res_state(self):
         return self.reservoir_state
 
-    def __get_readout__(self):
+    def readout_layer(self):
         return self.readout
 
-    def __get_reservoir_weight_matrix__(self):
+    def res_w(self):
         return self.W
     
+    def w_in(self):
+        return self.W_in
