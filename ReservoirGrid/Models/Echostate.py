@@ -26,7 +26,7 @@ class ESN(nn.Module):
         with torch.no_grad():
             max_eigenvalue = max(abs(torch.linalg.eigvals(self.W).real))
             self.W *= spectral_radius / max_eigenvalue
-            
+
         # Output layer (trainable)
         self.readout = nn.Linear(reservoir_dim, output_dim, bias=True)
         
@@ -89,7 +89,9 @@ class ESN(nn.Module):
             optimizer.step()
             losses = torch.cat((losses, loss.unsqueeze(0)), dim=0)
             if epoch % print_every == 0:
-                print(f'Epoch {epochs}, Iteration {epoch}, Loss: {loss.item()}')
+                print(f'Epoch {epoch}, Loss: {loss.item()}')
+            if epoch == epochs - 1:
+                print(f'Epoch {epoch}, Loss: {loss.item()}')
         return losses
         
     
@@ -109,8 +111,8 @@ class ESN(nn.Module):
 
         for _ in range(steps):
             r_state_last = self.res_state()
-            r_state_last = torch.tanh(torch.matmul(self.res_w().to(device), r_state_last.to(device))
-                                       + torch.matmul(self.w_in().to(device), preds.to(device)))
+            r_state_last = torch.tanh(torch.matmul(self.W.to(device), r_state_last.to(device))
+                                       + torch.matmul(self.W_in.to(device), preds.to(device)))
             
             pred = self.readout(r_state_last)
             self.update_reservoir(r_state_last)

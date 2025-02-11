@@ -19,13 +19,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ## INITIALIZATION
 # Generate Mackey-Glass dataset
-Mglass1 = MackeyGlassDataset(1000, 5, tau=20, seed=0)
+Mglass1 = MackeyGlassDataset(1000, 5, tau=17, seed=0)
 
 inputs, targets = Mglass1[0]
 inputs = inputs.to(device) 
 targets = targets.to(device)
 
-esn = ESN(input_dim=1, reservoir_dim=200, output_dim=1, spectral_radius=0.95)
+esn = ESN(input_dim=1, reservoir_dim=500, output_dim=1, spectral_radius=0.95)
 esn = esn.to(device)  
 
 # Debug device placement
@@ -35,7 +35,7 @@ print(f"Targets are on: {targets.device}")
 
 # Train the model
 esn.freeze_reservoir()
-losses = esn.Train(dataset=inputs, targets=targets, epochs=1000, 
+losses = esn.Train(dataset=inputs, targets=targets, epochs=100, 
                    lr=0.001, criterion=nn.MSELoss, print_every=10)
 
 # Plot training losses
