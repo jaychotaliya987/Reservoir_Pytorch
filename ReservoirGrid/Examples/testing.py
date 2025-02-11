@@ -1,11 +1,9 @@
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader
-
-import numpy 
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
 import matplotlib.pyplot as plt
-
 import sys
 import os
 
@@ -13,54 +11,49 @@ import os
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
 from Datasets.MackeyGlassDataset import MackeyGlassDataset
 from Models.Echostate import ESN
-import os
 
 print("Imports Done!\n")
 
-## INITIALIZATION
-Mglass1 = MackeyGlassDataset(100, 5, tau=20, seed=0)
-esn = ESN(input_dim=1, reservoir_dim=200, output_dim=1)
-epochs = 100
-
-## DATA PREPARATION
-Train_test_Split = 0.8
-train_size = int(Train_test_Split * len(Mglass1))
-test_size = len(Mglass1) - train_size
-
-train_dataset, test_dataset = torch.utils.data.random_split(Mglass1, [train_size, test_size])
-
-# Extract data from the dataset for plotting
-train_data = [data[0].numpy() for data in train_dataset]
-train_data = numpy.concatenate(train_data, axis=0)
-
-plt.plot(train_data)
-
-# Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}\n")
 
-## TRAINING
-esn = esn.to(device)  # Move model to GPU
-esn.freeze_reservoir()  # Freeze reservoir weights
 
-# Define optimizer and criterion for the readout layer
-optimizer = torch.optim.Adam(esn.readout.parameters(), lr=0.01)
-criterion = nn.MSELoss()
+## INITIALIZATION
+# Generate Mackey-Glass dataset
+Mglass1 = MackeyGlassDataset(1000, 5, tau=20, seed=0)
 
-# Convert NumPy arrays to tensors and move to GPU
-inputs = torch.from_numpy(train_data).float().to(device)
-targets = torch.from_numpy(train_data).float().to(device)
+inputs, targets = Mglass1[0]
+inputs = inputs.to(device) 
+targets = targets.to(device)
+
+esn = ESN(input_dim=1, reservoir_dim=200, output_dim=1, spectral_radius=0.95)
+esn = esn.to(device)  
 
 # Debug device placement
 print(f"Model is on: {next(esn.parameters()).device}")
 print(f"Inputs are on: {inputs.device}")
 print(f"Targets are on: {targets.device}")
 
-model_path = "model.pth"
+# Train the model
+esn.freeze_reservoir()
+losses = esn.Train(dataset=inputs, targets=targets, epochs=1000, 
+                   lr=0.001, criterion=nn.MSELoss, print_every=10)
 
-esn.Train(dataset=inputs, epochs=30, lr=0.0001, 
-          criterion=nn.MSELoss, print_every=5)
+# Plot training losses
+plt.plot(losses.cpu().detach().numpy())
+plt.title("Training Loss")
+plt.xlabel("Epoch")
+plt.ylabel("MSE Loss")
+plt.show()
 
+## PREDICTION
+# Predict future values
+future_steps = 200
+predictions = esn.Predict(inputs, future_steps)
 
-last_layer = esn.__get_reservoir_states__()
-print(last_layer.size())
+plt.plot(targets[:200].cpu().detach().numpy(), label="True")
+plt.plot(predictions.cpu().detach().numpy(), label="Predicted")
+plt.title("Mackey-Glass Prediction")
+plt.xlabel("Time")
+plt.ylabel("Value")
+plt.legend()
+plt.show()
