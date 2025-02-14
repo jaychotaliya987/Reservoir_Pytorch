@@ -35,8 +35,8 @@ print(f"Targets are on: {targets.device}")
 
 # Train the model
 esn.freeze_reservoir()
-losses = esn.Train(dataset=inputs, targets=targets, epochs=100, 
-                   lr=0.001, criterion=nn.MSELoss, print_every=10)
+losses = esn.Train(dataset=inputs, targets=targets, epochs=10, 
+                   lr=0.001, criterion=nn.MSELoss, print_every=1)
 
 # Plot training losses
 plt.plot(losses.cpu().detach().numpy())
@@ -45,15 +45,29 @@ plt.xlabel("Epoch")
 plt.ylabel("MSE Loss")
 plt.show()
 
-## PREDICTION
 # Predict future values
-future_steps = 200
-predictions = esn.Predict(inputs, future_steps)
+steps = 200
+predictions = esn.Predict(inputs, steps).cpu().detach().numpy()
 
-plt.plot(targets[:200].cpu().detach().numpy(), label="True")
-plt.plot(predictions.cpu().detach().numpy(), label="Predicted")
-plt.title("Mackey-Glass Prediction")
-plt.xlabel("Time")
-plt.ylabel("Value")
+inputs_plot = inputs[:-200]  # Keep last 200 for prediction comparison
+
+plt.figure(figsize=(10, 5))
+
+# Training data
+plt.plot(range(len(inputs_plot)), inputs_plot, label="Training Data")
+
+# True future data
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), targets[len(inputs_plot):len(inputs_plot) + steps], label="True Future")
+
+# ESN Predictions
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), predictions, '--', label="ESN Predict")
+
 plt.legend()
+plt.xlabel("Time Steps")
+plt.ylabel("Value")
+plt.title("Echo State Network Prediction")
 plt.show()
+
+
+
+
