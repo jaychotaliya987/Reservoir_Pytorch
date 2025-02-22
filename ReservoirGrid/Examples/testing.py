@@ -71,5 +71,3 @@ plt.title("Echo State Network Prediction")
 plt.show()
 
 
-
-
