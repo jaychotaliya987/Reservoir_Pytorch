@@ -53,7 +53,8 @@ class ESN(nn.Module):
                 torch.matmul(self.W_in.to(device), u[t]) +
                 torch.matmul(self.W.to(device), self.reservoir_state))
             
-            self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
+            self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)),
+                                               dim=0)
             
             # Compute output
             y = self.readout(self.reservoir_state)
