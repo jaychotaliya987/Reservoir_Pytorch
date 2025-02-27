@@ -69,5 +69,3 @@ plt.xlabel("Time Steps")
 plt.ylabel("Value")
 plt.title("Echo State Network Prediction")
 plt.show()
-
-
