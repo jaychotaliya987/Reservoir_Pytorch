@@ -18,7 +18,6 @@ print("Imports Done!\n")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 ## INITIALIZATION
 # Generate Mackey-Glass dataset
 Mglass1 = MackeyGlassDataset(1000, 5, tau=17, seed=0)
