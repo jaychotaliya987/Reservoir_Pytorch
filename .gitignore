@@ -1,5 +1,4 @@
-#! ignoring the vscode folder
-
 .vscode/
 venv/
 .vs/
+Resources/
