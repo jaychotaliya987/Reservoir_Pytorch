@@ -4,7 +4,6 @@ from torch import optim
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import matplotlib
-matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import sys
 import os
