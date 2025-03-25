@@ -1,194 +1,128 @@
-import math
+import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-from torch import nn
-from torch import optim
-from torch.utils.data import DataLoader, Dataset, TensorDataset
 
-
-class Reservoir(nn.Module):
-    def __init__(self, input_dim, reservoir_dim, output_dim, spectral_radius=0.95):
-        """
-        input_dim: Dimension of input sequence
-        reservoir_dim: Dimension of reservoir
-        output_dim: Dimension of output sequence, 
-                    For regression tasks, output_dim = 1
-        spectral_radius: Spectral radius of reservoir matrix
-        """
+class ESN(nn.Module):
+    def __init__(self, input_dim, reservoir_dim, output_dim, spectral_radius=0.9, leak_rate=0.3):
         super(ESN, self).__init__()
-        
-        # Initialize fixed reservoir and input weights
-        self.W_in = torch.randn(reservoir_dim, input_dim) * 0.1  # Scale input weights
-        self.W = torch.randn(reservoir_dim, reservoir_dim)       # Reservoir weights
-        
-        # Scale reservoir weights to ensure echo state property
-        with torch.no_grad():
-            max_eigenvalue = max(abs(torch.linalg.eigvals(self.W).real))
-            self.W *= spectral_radius / max_eigenvalue
+        self.reservoir_dim = reservoir_dim
+        self.leak_rate = leak_rate
 
-        # Output layer (trainable)
-        self.readout = nn.Linear(reservoir_dim, output_dim, bias=True)
+        # Initialize input weights
+        self.W_in = torch.randn(reservoir_dim, input_dim) * 0.1
         
-        # Nonlinearity for reservoir
+        # Initialize sparse reservoir weights
+        self.W = torch.rand(reservoir_dim, reservoir_dim) * 2 - 1
+        sparsity = 0.9  # 90% sparse
+        self.W[torch.rand(reservoir_dim, reservoir_dim) < sparsity] = 0
+        
+        # Scale spectral radius
+        max_eigenvalue = max(abs(torch.linalg.eigvals(self.W).real))
+        self.W *= spectral_radius / max_eigenvalue
+
+        # Readout layer
+        self.readout = nn.Linear(reservoir_dim, output_dim)
         self.activation = torch.tanh
         
-        # Reservoir state (initialized as a parameter to ensure it moves with the model's device)
+        # Initialize state
         self.register_buffer('reservoir_state', torch.zeros(reservoir_dim))
+        
+        # This will store states during forward pass
+        self.reservoir_states = []
 
-    def forward(self, u):
-        """
-        Forward pass through the reservoir and readout layer.
-        :param u: Input sequence (T x input_dim)
-        :return: Output (T x output_dim)
-        """
-        outputs = []  # Use a list to accumulate outputs
+    def forward(self, u, reset_state=True):
+        if reset_state:
+            self.reservoir_state = torch.zeros_like(self.reservoir_state)
+            self.reservoir_states = []  # Reset states storage
+        
         device = u.device
-        self.reservoir_states = torch.tensor([]).to(device)  # Ensure reservoir state is on the same device
-        self.reservoir_state = self.reservoir_state.to(device)  # Ensure reservoir state is on the same device
-
-        for t in range(u.size(0)):  # Iterate through time steps
-            # Update reservoir state
-            self.reservoir_state = self.activation(
-                torch.matmul(self.W_in.to(device), u[t]) +
-                torch.matmul(self.W.to(device), self.reservoir_state))
-            
-            self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)),
-                                               dim=0)
-            
-            # Compute output
-            y = self.readout(self.reservoir_state)
-            outputs.append(y)
+        self.W_in = self.W_in.to(device)
+        self.W = self.W.to(device)
+        self.reservoir_state = self.reservoir_state.to(device)
         
-        return torch.stack(outputs)  # Convert list to tensor
-    
-
-    def Train(self, dataset: torch.tensor, targets : torch.tensor, epochs: int, lr: float, 
-              criterion=nn.MSELoss, optimizer=optim.Adam, print_every=10):
-        """
-        Trains the model
-        :param dataset: Dataset for training
-        :param epochs: Number of epochs
-        :param lr: Learning rate
-        """
-        # Define loss function and optimizer
-        criterion = criterion()
-        optimizer = optimizer(self.parameters(), lr=lr)
+        for t in range(u.size(0)):
+            # Update reservoir state with leaky integration
+            new_state = self.activation(
+                torch.matmul(self.W_in, u[t]) + 
+                torch.matmul(self.W, self.reservoir_state)
+            )
+            self.reservoir_state = (1 - self.leak_rate) * self.reservoir_state + \
+                                   self.leak_rate * new_state
+            self.reservoir_states.append(self.reservoir_state.clone())
         
-        # Move model to the same device as the dataset
-        device = dataset.device
-        self.to(device)
+        return self.readout(torch.stack(self.reservoir_states))
 
-        # losses Tensor for plotting
-        losses = torch.tensor([]).to(device)
-
-        for epoch in range(epochs):   
-            optimizer.zero_grad()  
-            output = self(dataset)
-            loss = criterion(output, targets)
-            loss.backward()
-            optimizer.step()
-            losses = torch.cat((losses, loss.unsqueeze(0)), dim=0)
-            if epoch % print_every == 0:
-                print(f'Epoch {epoch}, Loss: {loss.item()}')
-            if epoch == epochs - 1:
-                print(f'Epoch {epoch}, Loss: {loss.item()}')
-        return losses
+    def train_readout(self, inputs, targets, alpha=1e-6):
+        """Train readout with ridge regression"""
+        # First collect all reservoir states
+        with torch.no_grad():
+            self.forward(inputs, reset_state=True)  # This populates self.reservoir_states
+            X = torch.stack(self.reservoir_states)
+            y = targets
         
-    
-                                                        
-    def Predict(self, input, steps):
-        """
-        Predict future outputs using an ESN in autonomous mode.
-        Args:
-            input (torch.Tensor): Initial input tensor
-            steps (int): Number of time steps to predict
-        Returns:
-            torch.Tensor: Predicted outputs of shape (steps, 1)
-        """
-        device = input.device
-        preds = input[-1]
+        # Ridge regression solution
+        X, y = X.cpu().numpy(), y.cpu().numpy()
+        I = np.eye(X.shape[1])
+        solution = np.linalg.solve(X.T @ X + alpha * I, X.T @ y)
+        
+        # Update readout weights
+        self.readout.weight.data = torch.tensor(solution.T, dtype=torch.float32, device=inputs.device)
+        self.readout.bias.data.zero_()
+
+    def predict(self, initial_input, steps, teacher_forcing=None):
+        """Predict future steps with optional teacher forcing"""
         predictions = []
-
-        for _ in range(steps):
-            r_state_last = self.res_state()
-            r_state_last = torch.tanh(torch.matmul(self.W.to(device), r_state_last.to(device))
-                                       + torch.matmul(self.W_in.to(device), preds.to(device)))
-            
-            pred = self.readout(r_state_last)
-            self.update_reservoir(r_state_last)
-            predictions.append(pred)
-
-        return torch.cat(predictions, dim=0)
-                    
-    def update_reservoir(self, u):
-        """
-        Update the reservoir state using the input sequence.
-        :param u: Input sequence (T x input_dim)
-        """
-        device = u.device
-        self.reservoir_state = u
-        self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
-
-####___________Echo State Property___________####
-
-    def freeze_reservoir(self):
-       # Ensure W_in and W are fixed
-       self.W_in.requires_grad = False
-       self.W.requires_grad = False
-
-    def Unfreeze_reservoir(self):
-        # Ensure W_in and W are trainable
-        self.W_in.requires_grad = True
-        self.W.requires_grad = True
-
-####___________Saving and Loading___________####
-
-    def Save_model(self, path = str):
-        """
-        Saves the model
-        :param path: Path to save the model
-        """
-        torch.save(self.state_dict(), path)
-    
-    def Load_model(self, path = str):
-        """
-        Loads the model
-        :param path: Path to load the model
-        """
-        self.load_state_dict(torch.load(path))
-
-####___________Plots_______________####
-  
-    def Plots(self, u, future = int, memory = int):
-        """
-        Plots the model's predictions
-        :param u: Input sequence (T x input_dim)
-        :param future: Number of future predictions
-        :param memory: Number of previous time steps to remember
-        """
-        predictions = self.Predictions(u, future, memory)
-        plt.plot(u, label='Input')
-        plt.plot(range(len(u), len(u) + future), predictions, label='Predictions')
-        plt.legend()
-        plt.show()
+        current_input = initial_input[-1]
         
-        return predictions
+        with torch.no_grad():
+            for step in range(steps):
+                new_state = self.activation(
+                    torch.matmul(self.W_in, current_input) + 
+                    torch.matmul(self.W, self.reservoir_state)
+                )
+                self.reservoir_state = (1 - self.leak_rate) * self.reservoir_state + \
+                                       self.leak_rate * new_state
+                pred = self.readout(self.reservoir_state)
+                predictions.append(pred)
+                
+                # Teacher forcing (optional)
+                if teacher_forcing is not None and step < len(teacher_forcing):
+                    current_input = teacher_forcing[step]
+                else:
+                    current_input = pred  # Autonomous feedback
+        
+        return torch.stack(predictions)
 
+# Generate synthetic data
+time = torch.linspace(0, 10, 1000)
+data = torch.sin(time).unsqueeze(1)  # (1000, 1)
 
-####___________Get Methods___________####
+# Normalize data to [-1, 1]
+data = (data - data.min()) / (data.max() - data.min()) * 2 - 1
 
-    def res_states(self):
-        return self.reservoir_states
+# Split into train and test
+train_data, test_data = data[:800], data[800:]
 
-    def res_state(self):
-        return self.reservoir_state
+# Initialize ESN
+esn = ESN(input_dim=1, reservoir_dim=100, output_dim=1, 
+          spectral_radius=0.9, leak_rate=0.3)
 
-    def readout_layer(self):
-        return self.readout
+# Train the readout
+esn.train_readout(train_data, train_data)
 
-    def res_w(self):
-        return self.W
+# Warm up reservoir with last 50 points of training data
+warmup_length = 50
+with torch.no_grad():
+    _ = esn(train_data[-warmup_length:], reset_state=True)
     
-    def w_in(self):
-        return self.W_in
+    # Predict next 100 steps
+    predictions = esn.predict(train_data[-1:], steps=100)
+
+# Plot results
+plt.figure(figsize=(10, 5))
+plt.plot(torch.cat([train_data[-50:], test_data[:100]]).numpy(), label='True')
+plt.plot(range(50, 150), predictions.numpy(), '--', label='Predicted')
+plt.axvline(x=50, color='r', linestyle=':', label='Prediction Start')
+plt.legend()
+plt.show()
