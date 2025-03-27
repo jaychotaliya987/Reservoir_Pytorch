@@ -3,9 +3,9 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-class ESN(nn.Module):
-    def __init__(self, input_dim, reservoir_dim, output_dim, spectral_radius=0.9, leak_rate=0.3):
-        super(ESN, self).__init__()
+class Reservoir(nn.Module):
+    def __init__(self, input_dim, reservoir_dim, output_dim, spectral_radius=0.1, leak_rate=0.3):
+        super(Reservoir, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate
 
@@ -14,12 +14,17 @@ class ESN(nn.Module):
         
         # Initialize sparse reservoir weights
         self.W = torch.rand(reservoir_dim, reservoir_dim) * 2 - 1
-        sparsity = 0.9  # 90% sparse
+        sparsity = 0.95
         self.W[torch.rand(reservoir_dim, reservoir_dim) < sparsity] = 0
         
         # Scale spectral radius
-        max_eigenvalue = max(abs(torch.linalg.eigvals(self.W).real))
-        self.W *= spectral_radius / max_eigenvalue
+        eigenvalues, _ = torch.linalg.eig(self.W)  # Get full eigenvalues
+        max_eigenvalue = torch.max(torch.abs(eigenvalues))  # Get largest magnitude
+        self.W *= spectral_radius / max_eigenvalue  # Proper scaling
+
+
+        print("Max Eigenvalue After Scaling:", max_eigenvalue)
+
 
         # Readout layer
         self.readout = nn.Linear(reservoir_dim, output_dim)
@@ -63,12 +68,14 @@ class ESN(nn.Module):
         
         # Ridge regression solution
         X, y = X.cpu().numpy(), y.cpu().numpy()
-        I = np.eye(X.shape[1])
-        solution = np.linalg.solve(X.T @ X + alpha * I, X.T @ y)
+        I = np.eye(X.shape[1]) * alpha  # Ensure correct regularization
+        solution = np.linalg.solve(X.T @ X + I, X.T @ y)
+
         
         # Update readout weights
         self.readout.weight.data = torch.tensor(solution.T, dtype=torch.float32, device=inputs.device)
-        self.readout.bias.data.zero_()
+        self.readout.bias.data = torch.zeros_like(self.readout.bias.data)
+
 
     def predict(self, initial_input, steps, teacher_forcing=None):
         """Predict future steps with optional teacher forcing"""
@@ -93,36 +100,3 @@ class ESN(nn.Module):
                     current_input = pred  # Autonomous feedback
         
         return torch.stack(predictions)
-
-# Generate synthetic data
-time = torch.linspace(0, 10, 1000)
-data = torch.sin(time).unsqueeze(1)  # (1000, 1)
-
-# Normalize data to [-1, 1]
-data = (data - data.min()) / (data.max() - data.min()) * 2 - 1
-
-# Split into train and test
-train_data, test_data = data[:800], data[800:]
-
-# Initialize ESN
-esn = ESN(input_dim=1, reservoir_dim=100, output_dim=1, 
-          spectral_radius=0.9, leak_rate=0.3)
-
-# Train the readout
-esn.train_readout(train_data, train_data)
-
-# Warm up reservoir with last 50 points of training data
-warmup_length = 50
-with torch.no_grad():
-    _ = esn(train_data[-warmup_length:], reset_state=True)
-    
-    # Predict next 100 steps
-    predictions = esn.predict(train_data[-1:], steps=100)
-
-# Plot results
-plt.figure(figsize=(10, 5))
-plt.plot(torch.cat([train_data[-50:], test_data[:100]]).numpy(), label='True')
-plt.plot(range(50, 150), predictions.numpy(), '--', label='Predicted')
-plt.axvline(x=50, color='r', linestyle=':', label='Prediction Start')
-plt.legend()
-plt.show()
