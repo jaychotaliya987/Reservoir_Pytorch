@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+sys.path.append('..')
+from Models.Reservoir import Reservoir
 
 # Function to test ESN with different spectral radii
 def test_esn(spectral_radius=0.9, leak_rate=0.2, sparsity=0.9, W_in_scale=0.1, steps=500):
@@ -22,13 +25,15 @@ def test_esn(spectral_radius=0.9, leak_rate=0.2, sparsity=0.9, W_in_scale=0.1, s
     state_norms = [state.norm().item() for state in esn.reservoir_states]
 
     # Plot reservoir dynamics
-    plt.figure(figsize=(10, 5))
-    plt.plot(state_norms, label=f"Spectral Radius = {spectral_radius}")
-    plt.xlabel("Time Step")
-    plt.ylabel("Reservoir State Norm")
-    plt.title("Reservoir Dynamics")
-    plt.legend()
-    plt.show()
+    plt.figure(figsize=(12, 6))
+    plt.plot(state_norms, label=f"Spectral Radius = {spectral_radius}", color='#AC6600', linewidth=2)
+    plt.xlabel("Time Step", fontsize=14, labelpad=10)
+    plt.ylabel("Reservoir State Norm", fontsize=14, labelpad=10)
+    plt.title("Reservoir Dynamics", fontsize=16, pad=15)
+    plt.grid(visible=True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+    plt.legend(fontsize=12, loc='upper right', frameon=True, shadow=True, borderpad=1)
+    plt.tight_layout()
+    plt.savefig(f"test_{spectral_radius}.png",dpi=600)
     
     # Approximate Lyapunov Exponent (Δx growth rate)
     diffs = np.abs(np.diff(state_norms))
@@ -44,7 +49,3 @@ def test_esn(spectral_radius=0.9, leak_rate=0.2, sparsity=0.9, W_in_scale=0.1, s
     else:
         print("⚠ Not enough state changes to compute Lyapunov exponent.")
 
-# Run tests with different spectral radii
-test_esn(spectral_radius=0.7)  # Low: likely periodic
-test_esn(spectral_radius=0.9)  # Recommended: should be near edge of chaos
-test_esn(spectral_radius=1.3)  # High: might be chaotic
