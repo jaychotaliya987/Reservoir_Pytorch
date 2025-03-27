@@ -8,6 +8,7 @@ class Reservoir(nn.Module):
         super(Reservoir, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate
+        self.spectral_radius = spectral_radius
 
         # Initialize input weights
         self.W_in = torch.randn(reservoir_dim, input_dim) * 0.1
