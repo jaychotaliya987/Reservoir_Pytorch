@@ -1,28 +1,44 @@
-import torch
-import torch.nn as nn
+import math
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
+from torch import nn
+from torch import optim
+from torch.utils.data import DataLoader, Dataset, TensorDataset
+
 
 class Reservoir(nn.Module):
     def __init__(self, input_dim, reservoir_dim, output_dim, 
                  spectral_radius=0.9, leak_rate=0.3, sparsity=0.9, 
                  input_scaling=1.0, noise_level=0.01):
+        """
+        input_dim: Dimension of input sequence
+        reservoir_dim: Dimension of reservoir
+        output_dim: Dimension of output sequence, 
+                    For regression tasks, output_dim = 1
+        spectral_radius: Max Eigenvalue of reservoir matrix
+        leak_rate: Rate of leaky integration
+        sparsity: Fraction of non-zero weights in reservoir matrix
+        input_scaling: Scaling factor for input weights
+        noise_level: Level of noise added to reservoir state
+        """
         super(Reservoir, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate
         self.spectral_radius = spectral_radius
         self.noise_level = noise_level
         
-        # Initialize input weights with proper scaling
+        # Input Weights with Scaling
         self.W_in = torch.randn(reservoir_dim, input_dim) * input_scaling
         
-        # Initialize sparse reservoir weights
+        # Reservoir Weights
         self.W = torch.rand(reservoir_dim, reservoir_dim) * 2 - 1
-        # Create sparse mask
+
+        # Create Sparse Mask
         mask = torch.rand(reservoir_dim, reservoir_dim) > sparsity
         self.W *= mask.float()
         
-        # Scale spectral radius properly
+        # Scale Spectral Radius
         eigenvalues = torch.linalg.eigvals(self.W)
         current_spectral_radius = torch.max(torch.abs(eigenvalues))
         self.W *= (spectral_radius / current_spectral_radius)
@@ -34,7 +50,7 @@ class Reservoir(nn.Module):
         # Initialize state
         self.register_buffer('reservoir_state', torch.zeros(reservoir_dim))
         self.reservoir_states = []
-
+    
     def forward(self, u, reset_state=True):
         if reset_state:
             self.reservoir_state = torch.zeros_like(self.reservoir_state)
@@ -46,7 +62,7 @@ class Reservoir(nn.Module):
         self.reservoir_state = self.reservoir_state.to(device)
         
         for t in range(u.size(0)):
-            # Add small noise for regularization
+            #Small noise for regularization
             noise = torch.randn_like(self.reservoir_state) * self.noise_level
             
             # Update reservoir state with leaky integration
@@ -58,8 +74,41 @@ class Reservoir(nn.Module):
                                   self.leak_rate * new_state
             self.reservoir_states.append(self.reservoir_state.clone())
         
-        return self.readout(torch.stack(self.reservoir_states))
+            return self.readout(torch.stack(self.reservoir_states))
 
+    def Train(self, dataset: torch.tensor, targets : torch.tensor, epochs: int, lr: float, 
+              criterion=nn.MSELoss, optimizer=optim.Adam, print_every=10):
+        """
+        Trains the model
+        :param dataset: Dataset for training
+        :param epochs: Number of epochs
+        :param lr: Learning rate
+        """
+        # Define loss function and optimizer
+        criterion = criterion()
+        optimizer = optimizer(self.parameters(), lr=lr)
+        
+        # Move model to the same device as the dataset
+        device = dataset.device
+        self.to(device)
+
+        # losses Tensor for plotting
+        losses = torch.tensor([]).to(device)
+
+        for epoch in range(epochs):   
+            optimizer.zero_grad()  
+            output = self(dataset)
+            loss = criterion(output, targets)
+            loss.backward()
+            optimizer.step()
+            losses = torch.cat((losses, loss.unsqueeze(0)), dim=0)
+            if epoch % print_every == 0:
+                print(f'Epoch {epoch}, Loss: {loss.item()}')
+            if epoch == epochs - 1:
+                print(f'Epoch {epoch}, Loss: {loss.item()}')
+        return losses
+        
+    
     def train_readout(self, inputs, targets, alpha=1e-6):
         """Train readout with ridge regression"""
         # First collect all reservoir states
@@ -67,26 +116,26 @@ class Reservoir(nn.Module):
             self.forward(inputs, reset_state=True)
             X = torch.stack(self.reservoir_states)
             y = targets
-        
+
         # Convert to numpy for ridge regression
         X_np = X.cpu().numpy()
         y_np = y.cpu().numpy()
-        
-        # More efficient ridge regression implementation
+
         X_T = X_np.T
         I = np.eye(self.reservoir_dim) * alpha
         solution = np.linalg.pinv(X_T @ X_np + I) @ X_T @ y_np
-        
+
         # Update readout weights
         with torch.no_grad():
             self.readout.weight.data = torch.tensor(solution.T, dtype=torch.float32, device=inputs.device)
-            self.readout.bias.data.zero_()
+            self.readout.bias.data.zero_()    
+
 
     def predict(self, initial_input, steps, teacher_forcing=None, warmup=0):
         """Predict future steps with optional teacher forcing and warmup"""
         predictions = []
         current_input = initial_input[-1]
-        
+
         with torch.no_grad():
             # Warmup phase to stabilize reservoir state
             for _ in range(warmup):
@@ -96,7 +145,7 @@ class Reservoir(nn.Module):
                 )
                 self.reservoir_state = (1 - self.leak_rate) * self.reservoir_state + \
                                      self.leak_rate * new_state
-            
+
             # Prediction phase
             for step in range(steps):
                 new_state = self.activation(
@@ -107,11 +156,58 @@ class Reservoir(nn.Module):
                                      self.leak_rate * new_state
                 pred = self.readout(self.reservoir_state)
                 predictions.append(pred)
-                
+
                 # Teacher forcing logic
                 if teacher_forcing is not None and step < len(teacher_forcing):
                     current_input = teacher_forcing[step]
                 else:
                     current_input = pred
-        
+
         return torch.stack(predictions)
+
+####___________Echo State Property___________####
+
+    def freeze_reservoir(self):
+       # Ensure W_in and W are fixed
+       self.W_in.requires_grad = False
+       self.W.requires_grad = False
+
+    def Unfreeze_reservoir(self):
+        # Ensure W_in and W are trainable
+        self.W_in.requires_grad = True
+        self.W.requires_grad = True
+
+####___________Saving and Loading___________####
+
+    def Save_model(self, path = str):
+        """
+        Saves the model
+        :param path: Path to save the model
+        """
+        torch.save(self.state_dict(), path)
+    
+    def Load_model(self, path = str):
+        """
+        Loads the model
+        :param path: Path to load the model
+        """
+        self.load_state_dict(torch.load(path))
+
+
+
+####___________Get Methods___________####
+
+    def res_states(self):
+        return self.reservoir_states
+
+    def res_state(self):
+        return self.reservoir_state
+
+    def readout_layer(self):
+        return self.readout
+
+    def res_w(self):
+        return self.W
+    
+    def w_in(self):
+        return self.W_in
