@@ -7,11 +7,11 @@ from torch import optim
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
-class Reservoir(nn.Module):
+class ESN(nn.Module):
     def __init__(self, input_dim, reservoir_dim, output_dim, 
                  spectral_radius=0.9, leak_rate=0.3, sparsity=0.9, 
                  input_scaling=1.0, noise_level=0.01):
-        super(Reservoir, self).__init__()
+        super(ESN, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate
         self.spectral_radius = spectral_radius
