@@ -12,58 +12,74 @@ import os
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
 from Datasets.MackeyGlassDataset import MackeyGlassDataset
 from Models.Echostate import ESN
+from Models.Reservoir import Reservoir
 
 print("Imports Done!\n")
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-## INITIALIZATION
-# Generate Mackey-Glass dataset
 Mglass1 = MackeyGlassDataset(1000, 5, tau=17, seed=0)
-
 inputs, targets = Mglass1[0]
-inputs = inputs.to(device) 
+inputs = inputs.to(device)
 targets = targets.to(device)
 
-esn = ESN(input_dim=1, reservoir_dim=500, output_dim=1, spectral_radius=0.95)
-esn = esn.to(device)  
+# Create reservoir
+reservoir = Reservoir(input_dim=1, reservoir_dim=500, output_dim=1, 
+                     spectral_radius=0.95, leak_rate=0.3, sparsity=0.9)
+reservoir = reservoir.to(device)
 
-# Debug device placement
-print(f"Model is on: {next(esn.parameters()).device}")
-print(f"Inputs are on: {inputs.device}")
-print(f"Targets are on: {targets.device}")
 
-# Train the model
-esn.freeze_reservoir()
-losses = esn.Train(dataset=inputs, targets=targets, epochs=10, 
-                   lr=0.001, criterion=nn.MSELoss, print_every=1)
-
-# Plot training losses
-plt.plot(losses.cpu().detach().numpy())
-plt.title("Training Loss")
-plt.xlabel("Epoch")
-plt.ylabel("MSE Loss")
-plt.show()
+# Train the readout layer
+reservoir.train_readout(inputs, targets, alpha=1e-6)
 
 # Predict future values
 steps = 200
-predictions = esn.Predict(inputs, steps).cpu().detach().numpy()
+with torch.no_grad():
+    initial_input = inputs[-1:] 
+    predictions = reservoir.predict(initial_input, steps=steps)
+predictions = predictions.squeeze(1).cpu().numpy()
 
-inputs_plot = inputs[:-200]  # Keep last 200 for prediction comparison
+inputs_plot = inputs[:-steps].squeeze(1).cpu().numpy()  # (800,)
+true_future = targets[-steps:].squeeze(1).cpu().numpy()  # (200,)
 
-plt.figure(figsize=(10, 5))
+# Set up the plot
+plt.figure(figsize=(12, 6), dpi=100)
+plt.grid(True, alpha=0.3)
+plt.gca().set_facecolor('#f8f9fa')  # Light gray background
 
-# Training data
-plt.plot(range(len(inputs_plot)), inputs_plot, label="Training Data")
+# Training data (thicker line)
+plt.plot(range(len(inputs_plot)), inputs_plot, 
+         color='#1f77b4', linewidth=2.5, 
+         label="Training Data")
 
-# True future data
-plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), targets[len(inputs_plot):len(inputs_plot) + steps], label="True Future")
+# True future data (solid line)
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
+         true_future, 
+         color='#2ca02c', linewidth=2.5,
+         label="True Future")
 
-# ESN Predictions
-plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), predictions, '--', label="ESN Predict")
+# Reservoir Predictions (dashed with markers)
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
+         predictions, 
+         '--', color='#ff7f0e', linewidth=2,
+         marker='o', markersize=4, markevery=1,
+         label="Reservoir Predictions")
 
-plt.legend()
-plt.xlabel("Time Steps")
-plt.ylabel("Value")
-plt.title("Echo State Network Prediction")
+# Add vertical line at prediction start
+plt.axvline(x=len(inputs_plot), color='gray', linestyle=':', alpha=0.7)
+
+# Add annotations
+plt.annotate('Prediction Start', 
+             xy=(len(inputs_plot), np.min(inputs_plot)), 
+             xytext=(10, 100), textcoords='offset points',
+             arrowprops=dict(arrowstyle="->"))
+
+# Formatting
+plt.title("Mackey-Glass Time Series Prediction\nReservoir Computing Performance", 
+          fontsize=14, pad=20)
+plt.xlabel("Time Steps", fontsize=12)
+plt.ylabel("System State", fontsize=12)
+plt.legend(loc='upper right', framealpha=1)
+
+# Adjust layout
+plt.tight_layout()
 plt.show()

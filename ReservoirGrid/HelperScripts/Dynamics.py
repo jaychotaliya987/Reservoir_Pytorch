@@ -41,9 +41,9 @@ def test_esn(spectral_radius=0.9, leak_rate=0.2, sparsity=0.9, W_in_scale=0.1, s
         lyap_exp = np.mean(np.log(diffs + 1e-6))  # Small epsilon to avoid log(0)
         print(f"Approximate Lyapunov Exponent: {lyap_exp:.4f}")
         if lyap_exp > 0:
-            print("🔴 Chaotic Dynamics Detected!")
+            print("Chaotic Dynamics Detected!")
         elif lyap_exp < 0:
-            print("🟢 Stable / Periodic Dynamics")
+            print("Stable / Periodic Dynamics")
         else:
             print("⚠ Unclear Behavior")
     else:
