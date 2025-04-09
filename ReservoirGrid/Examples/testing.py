@@ -12,6 +12,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
 from Datasets.MackeyGlassDataset import MackeyGlassDataset
 from Models.Reservoir import Reservoir
+from Models.Echostate import ESN
 
 print("Imports Done!\n")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,16 +27,23 @@ reservoir = Reservoir(input_dim=1, reservoir_dim=500, output_dim=1,
                      spectral_radius=0.90, leak_rate=0.3, sparsity=0.9)
 reservoir = reservoir.to(device)
 
+reservoir2 = ESN(input_dim=1, reservoir_dim=500, output_dim=1,
+                  spectral_radius=0.90, leak_rate=0.3, sparsity=0.9)
+reservoir2 = reservoir2.to(device)
+
 
 # Train the readout layer
 reservoir.train_readout(inputs, targets, alpha=1e-6)
+reservoir2.train_readout(inputs, targets, alpha=1e-6)
 
 # Predict future values
 steps = 1000
 with torch.no_grad():
     initial_input = inputs[-1:] 
     predictions = reservoir.predict(initial_input, steps=steps, teacher_forcing=None, warmup=0)
+    predictions2 = reservoir2.predict(initial_input, steps=steps, teacher_forcing=None, warmup=0)
 predictions = predictions.squeeze(1).cpu().numpy()
+predictions2 = predictions2.squeeze(1).cpu().numpy()
 
 
 inputs_plot = inputs[:-steps].squeeze(1).cpu().numpy()  # (800,)
