@@ -11,7 +11,6 @@ import os
 # Ensure the correct path to MackeyGlass module
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
 from Datasets.MackeyGlassDataset import MackeyGlassDataset
-from Models.Echostate import ESN
 from Models.Reservoir import Reservoir
 
 print("Imports Done!\n")
