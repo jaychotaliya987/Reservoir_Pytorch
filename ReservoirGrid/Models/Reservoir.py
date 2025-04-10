@@ -93,10 +93,14 @@ class Reservoir(nn.Module):
     def Train(self, dataset: torch.tensor, targets : torch.tensor, epochs: int, lr: float, 
               criterion=nn.MSELoss, optimizer=optim.Adam, print_every=10):
         """
-        Trains the model
+        Trains the model with BP, for additional accuarcy.
         :param dataset: Dataset for training
         :param epochs: Number of epochs
         :param lr: Learning rate
+        :param criterion: Loss function (default: MSELoss)
+        :param optimizer: Optimizer (default: Adam)
+        :param print_every: Print loss every n epochs
+        :return: losses Tensor for plotting
         """
         # Define loss function and optimizer
         criterion = criterion()
@@ -137,7 +141,7 @@ class Reservoir(nn.Module):
                 self.reservoir_state = (1 - self.leak_rate) * self.reservoir_state + \
                                      self.leak_rate * new_state
 
-            # Prediction phase
+            # Autonomous Predictions
             for step in range(steps):
                 new_state = self.activation(
                     torch.matmul(self.W_in, current_input) + 
@@ -192,23 +196,6 @@ class Reservoir(nn.Module):
         :param path: Path to load the model
         """
         self.load_state_dict(torch.load(path))
-
-####___________Plots_______________####
-  
-    def Plots(self, u, future = int, memory = int):
-        """
-        Plots the model's predictions
-        :param u: Input sequence (T x input_dim)
-        :param future: Number of future predictions
-        :param memory: Number of previous time steps to remember
-        """
-        predictions = self.Predictions(u, future, memory)
-        plt.plot(u, label='Input')
-        plt.plot(range(len(u), len(u) + future), predictions, label='Predictions')
-        plt.legend()
-        plt.show()
-        
-        return predictions
 
 
 ####___________Get Methods___________####
