@@ -159,7 +159,7 @@ class Reservoir(nn.Module):
                     current_input = pred
 
         return torch.stack(predictions)
-                                                                            
+
     def update_reservoir(self, u):
         """
         Update the reservoir state using the input sequence.
