@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
 import os
+matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
 
 # Ensure the correct path to MackeyGlass module
 sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
@@ -27,7 +28,7 @@ targets = targets.to(device)
 
 # Create reservoir
 reservoir = Reservoir(input_dim=1, reservoir_dim=500, output_dim=1, 
-                     spectral_radius=1.1, leak_rate=0.3, sparsity=0.9)
+                     spectral_radius=1, leak_rate=0.3, sparsity=0.9)
 reservoir = reservoir.to(device)
 
 # Train the readout layer
@@ -37,7 +38,7 @@ reservoir.train_readout(inputs, targets, alpha=1e-6)
 steps = 1000
 with torch.no_grad():
     initial_input = inputs[-1:] 
-    predictions = reservoir.predict(initial_input, steps=steps, teacher_forcing=inputs, warmup=3)
+    predictions = reservoir.predict(initial_input, steps=steps, teacher_forcing=None, warmup=0)
 predictions = predictions.squeeze(1).cpu().numpy()
 
 inputs_plot = inputs[:-steps].squeeze(1).cpu().numpy()  # (800,)
