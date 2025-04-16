@@ -26,47 +26,52 @@ inputs = inputs.to(device)
 targets = targets.to(device)
 
 # Create reservoir
-reservoir = Reservoir(input_dim=1, reservoir_dim=500, output_dim=1, 
-                     spectral_radius=1, leak_rate=0.3, sparsity=0.9)
+reservoir = Reservoir(input_dim=1, reservoir_dim=2000, output_dim=1, 
+                     spectral_radius=1.2, leak_rate=0.3, sparsity=0.95)
 reservoir = reservoir.to(device)
 
+steps = 1000
+
 # Train the readout layer
-reservoir.train_readout(inputs, targets, alpha=1e-6)
+reservoir.train_readout(inputs[:-steps], targets[:-steps], alpha=1e-6)
 
 # Predictions
-steps = 1000
-with torch.no_grad():
-    initial_input = inputs[-1:] 
-    predictions = reservoir.predict(initial_input, steps=steps, teacher_forcing=None, warmup=0)
+
+predictions = reservoir.predict(inputs, steps=steps, teacher_forcing=None, warmup=0)
 predictions = predictions.squeeze(1).cpu().numpy()
 
-inputs_plot = inputs[:-steps].squeeze(1).cpu().numpy()  # (800,)
-true_future = targets[-steps:].squeeze(1).cpu().numpy()  # (200,)
+print(f"Predictions shape: {predictions.shape}")
+print(f"Inputs shape: {inputs.shape}")
+print(f"Targets shape: {targets.shape}")
+print(inputs[-1] == targets[-2])
+
 
 ######-------------------Plots-------------------######
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(12, 6), dpi=100)
 
-# Training data
+# Training data (plot FULL input sequence)
+inputs_plot = inputs.squeeze(1).cpu().numpy()  # (1000,)
 plt.plot(range(len(inputs_plot)), inputs_plot, 
          color='#1f77b4', linewidth=2.5, 
          label="Training Data")
 
-# True future data
+# True future data (aligned with predictions)
+true_future = inputs[-steps:].squeeze(1).cpu().numpy()  # (200,)
 plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
          true_future, 
          color='#2ca02c', linewidth=2.5,
          label="True Future")
 
-# Reservoir Predictions
+# Reservoir Predictions (start right after inputs end)
 plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
          predictions, 
          color='#ff7f0e', linewidth=2,
          marker='o', markersize=2, markevery=5,
          label="Reservoir Predictions")
 
-# Vertical line
-plt.axvline(x=len(inputs_plot), color='gray', linestyle=':', alpha=0.7)
+# Vertical line at prediction start
+plt.axvline(x=len(inputs_plot), color='gray', linestyle=':')
 
 # Annotations
 plt.annotate('Prediction Start', 
@@ -83,6 +88,5 @@ plt.xlabel("Time Steps", fontsize=12)
 plt.ylabel("System State", fontsize=12)
 plt.legend(loc='upper right', framealpha=1)
 
-# Adjust layout
 plt.tight_layout()
 plt.show()

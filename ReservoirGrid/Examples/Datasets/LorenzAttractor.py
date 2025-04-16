@@ -16,7 +16,8 @@ class LorenzAttractor(Dataset):
     """
 
     # Constructor
-    def __init__(self, sample_len, n_samples, xyz, sigma, b, r, dt=0.01, washout=0, normalize=False, seed=None):
+    def __init__(self, sample_len, n_samples, xyz, sigma, b, r, 
+                 dt=0.01, washout=0, normalize=False, seed=None):
         """
         Constructor
         :param sample_len: Length of the time-series in time steps.
@@ -148,9 +149,10 @@ class LorenzAttractor(Dataset):
 
             # Normalize
             if self.normalize:
-                maxval = torch.max(sample, dim=0)
-                minval = torch.min(sample, dim=0)
-                sample = torch.mm(torch.inv(torch.diag(maxval - minval)), (sample - minval.repeat(total_size, 1)))
+                maxval = torch.max(sample, dim=0).values
+                minval = torch.min(sample, dim=0).values
+                sample = (sample - minval) / (maxval - minval)
+
             # end if
 
             # Append

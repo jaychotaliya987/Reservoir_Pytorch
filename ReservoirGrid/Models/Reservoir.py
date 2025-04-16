@@ -126,10 +126,10 @@ class Reservoir(nn.Module):
                 print(f'Epoch {epoch}, Loss: {loss.item()}')
         return losses
         
-    def predict(self, initial_input, steps, teacher_forcing=None, warmup=0):
+    def predict(self, input, steps, teacher_forcing=None, warmup=0):
         """Predict future steps with optional teacher forcing and warmup"""
         predictions = []
-        current_input = initial_input[-1]
+        current_input = input[-1]
 
         with torch.no_grad():
             # Warmup phase to stabilize reservoir state
@@ -180,6 +180,13 @@ class Reservoir(nn.Module):
         # Ensure W_in and W are trainable
         self.W_in.requires_grad = True
         self.W.requires_grad = True
+    
+    def Reset(self):
+        """
+        Resets the reservoir state
+        """
+        self.reservoir_state = torch.zeros_like(self.reservoir_state)
+        self.reservoir_states = []
 
 ####___________Saving and Loading___________####
 
@@ -214,3 +221,5 @@ class Reservoir(nn.Module):
     
     def w_in(self):
         return self.W_in
+    
+
