@@ -27,8 +27,7 @@ class Reservoir(nn.Module):
         self.W *= mask.float()
 
         # Scale spectral radius 
-        eigenvalues = np.linalg.eigvals(self.W.cpu().numpy()) #? this is fastern then torch.linalg.eigvals
-        #eigenvalues = torch.linalg.eigvals(self.W)
+        eigenvalues = torch.linalg.eigvals(self.W)
         current_spectral_radius = torch.max(torch.abs(eigenvalues))
         self.W *= (spectral_radius / current_spectral_radius)
 
