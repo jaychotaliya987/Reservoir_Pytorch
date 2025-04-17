@@ -39,7 +39,7 @@ class LorenzAttractor(Dataset):
 
         # Seed
         if seed is not None:
-            torch.initial_seed(seed)
+            torch.manual_seed(seed)
         # end if
 
         # Generate data set
