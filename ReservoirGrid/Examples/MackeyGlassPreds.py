@@ -43,50 +43,67 @@ predictions = predictions.squeeze(1).cpu().numpy()
 print(f"Predictions shape: {predictions.shape}")
 print(f"Inputs shape: {inputs.shape}")
 print(f"Targets shape: {targets.shape}")
-print(inputs[-1] == targets[-2])
-
 
 ######-------------------Plots-------------------######
-sns.set_theme(style="whitegrid")
-plt.figure(figsize=(12, 6), dpi=100)
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 
-# Training data (plot FULL input sequence)
-inputs_plot = inputs.squeeze(1).cpu().numpy()  # (1000,)
-plt.plot(range(len(inputs_plot)), inputs_plot, 
-         color='#1f77b4', linewidth=2.5, 
+# Set style and palette
+sns.set_style("white")
+sns.set_palette(['#8da0cb', '#66c2a5', '#fc8d62'])  # custom color set
+sns.despine()
+
+plt.figure(figsize=(12, 6), dpi=200)
+
+# Plot training data
+inputs_plot = inputs.squeeze(1).cpu().numpy()
+plt.plot(range(len(inputs_plot)), inputs_plot,
+         color='#8da0cb', linewidth=2.5,
          label="Training Data")
 
-# True future data (aligned with predictions)
-true_future = inputs[-steps:].squeeze(1).cpu().numpy()  # (200,)
-plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
-         true_future, 
-         color='#2ca02c', linewidth=2.5,
+# Plot true future
+true_future = inputs[-steps:].squeeze(1).cpu().numpy()
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps),
+         true_future,
+         color='#66c2a5', linewidth=2.5,
          label="True Future")
 
-# Reservoir Predictions (start right after inputs end)
-plt.plot(range(len(inputs_plot), len(inputs_plot) + steps), 
-         predictions, 
-         color='#ff7f0e', linewidth=2,
-         marker='o', markersize=2, markevery=5,
+# Plot predictions
+plt.plot(range(len(inputs_plot), len(inputs_plot) + steps),
+         predictions,
+         color='#fc8d62', linewidth=2.5,
+         linestyle='--', alpha=0.8,
          label="Reservoir Predictions")
 
 # Vertical line at prediction start
-plt.axvline(x=len(inputs_plot), color='gray', linestyle=':')
+plt.axvline(x=len(inputs_plot), color='gray', linestyle=':', linewidth=1.2, alpha=0.7)
 
-# Annotations
-plt.annotate('Prediction Start', 
-             xy=(len(inputs_plot), np.min(inputs_plot)), 
-             xytext=(10, 10), textcoords='offset points',
-             arrowprops=dict(arrowstyle="->"))
+# Annotate prediction start
+plt.annotate('Prediction Start',
+             xy=(len(inputs_plot), true_future[0]),
+             xytext=(len(inputs_plot)-60, true_future[0]+0.05),
+             textcoords='data',
+             arrowprops=dict(arrowstyle="->", color='gray'),
+             fontsize=12)
 
-# Formatting
-plt.title("Mackey-Glass Time Series Prediction", fontsize=16, pad=20)
+# Labels and title
+plt.title("Mackey-Glass Time Series Forecast", fontsize=18, pad=15, weight='semibold')
+plt.xlabel("Time Step", fontsize=13)
+plt.ylabel("System State", fontsize=13)
+
+# Ticks
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
-plt.xlim(0, len(inputs_plot) + steps)
-plt.xlabel("Time Steps", fontsize=12)
-plt.ylabel("System State", fontsize=12)
-plt.legend(loc='upper right', framealpha=1)
 
+# Limits
+plt.xlim(0, len(inputs_plot) + steps)
+
+# Legend
+plt.legend(loc='upper right', fontsize=12)
+
+# Layout and save (optional)
 plt.tight_layout()
+# plt.savefig("forecast_plot.png", dpi=300, bbox_inches='tight')
+
 plt.show()
