@@ -26,8 +26,9 @@ class Reservoir(nn.Module):
         mask = torch.rand(reservoir_dim, reservoir_dim) > sparsity
         self.W *= mask.float()
 
-        # Scale spectral radius properly
-        eigenvalues = torch.linalg.eigvals(self.W)
+        # Scale spectral radius 
+        eigenvalues = np.linalg.eigvals(self.W.cpu().numpy()) #? this is fastern then torch.linalg.eigvals
+        #eigenvalues = torch.linalg.eigvals(self.W)
         current_spectral_radius = torch.max(torch.abs(eigenvalues))
         self.W *= (spectral_radius / current_spectral_radius)
 
@@ -69,9 +70,14 @@ class Reservoir(nn.Module):
 
         return self.readout(torch.stack(self.reservoir_states))
 
-    def train_readout(self, inputs, targets, alpha=1e-6):
+    def train_readout(self, inputs, targets, Warmup = None ,alpha=1e-6):
         """Train readout with ridge regression"""
-        # First collect all reservoir states
+        
+        if Warmup is not None:
+            inputs = inputs[Warmup:]
+            targets = targets[Warmup:]
+        
+
         with torch.no_grad():
             self.forward(inputs, reset_state=True)
             X = torch.stack(self.reservoir_states)
