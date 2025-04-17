@@ -22,7 +22,9 @@ else:
     print('CPU is available')
 
 # Generate the Lorenz Attractor data
-attractor = LorenzAttractor(sample_len=10000, n_samples=10, xyz=[1.0, 1.0, 1.0], sigma=10.0, b=8/3, r=28.0, seed=42)
+attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
+                            sigma=10.0, b=8/3, r=28.0, seed=42)
+
 attractor_samp = attractor[0]
 
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
@@ -57,18 +59,17 @@ fig = go.Figure(data=[go.Scatter3d(
     z=predictions[:,2].numpy(),
     mode='lines',
     line=dict(
-        color=predictions[:,2].numpy(),  # Color by z-value for depth
-        colorscale='Viridis',            # Use a pretty colormap
-        width=3,                         # Slightly thicker line
-        showscale=True                   # Show color scale bar
+        color=predictions[:,2].numpy(),  
+        colorscale='Viridis',            
+        width=3,                         
+        showscale=True                   
     ),
-    hoverinfo='none'                    # Cleaner hover
+    hoverinfo='none'                   
 )])
 
-# Update layout for better aesthetics
 fig.update_layout(
     title={
-        'text': 'Lorenz Attractor Trajectory',
+        'text': "<b>Lorenz Attractor Predictions</b>",
         'y':0.9,
         'x':0.5,
         'xanchor': 'center',
@@ -84,29 +85,15 @@ fig.update_layout(
         zaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
         bgcolor='rgb(240, 240, 240)',
         camera=dict(
-            eye=dict(x=1.5, y=1.5, z=0.6)  # Better viewing angle
+            eye=dict(x=1.5, y=1.5, z=0.6) 
         )
     ),
-    margin=dict(l=0, r=0, b=0, t=30),  # Tight margins
+    margin=dict(l=0, r=0, b=0, t=30),  
     paper_bgcolor='white',
-    height=700,                        # Larger figure
+    height=700,                        
     width=800
 )
 
-# Add annotations
-fig.update_layout(
-    annotations=[
-        dict(
-            text="predictions",
-            x=0.5,
-            y=0.05,
-            xref="paper",
-            yref="paper",
-            showarrow=False,
-            font=dict(size=12)
-        )
-    ]
-)
 
 fig.show()
 
@@ -118,13 +105,12 @@ fig = make_subplots(rows=3, cols=1,
                     subplot_titles=("X Component", "Y Component", "Z Component"))
 
 # Color scheme
-colors = ['#8da0cb', '#66c2a5', '#fc8d62']  # Training, True Future, Predictions
+colors = ['#8da0cb', '#66c2a5', '#fc8d62']
 divider_color = 'gray'
 
 # Plot each component
 components = ['X', 'Y', 'Z']
 for i, component in enumerate(components, 1):
-    # Training data (last 1000 steps)
     fig.add_trace(go.Scatter(
         x=np.arange(len(attractor_samp[-1000:, i-1])),
         y=attractor_samp[-1000:, i-1].numpy(),
@@ -154,7 +140,7 @@ for i, component in enumerate(components, 1):
         row=i, col=1
     )
     
-    # Add annotation for first component only
+    # Annotation for first component
     if i == 1:
         fig.add_annotation(
             x=prediction_start,
@@ -171,7 +157,7 @@ for i, component in enumerate(components, 1):
 # Update layout
 fig.update_layout(
     title=dict(
-        text="<b>Lorenz Attractor: Components vs Predictions</b>",
+        text="<b>Lorenz Attractor: Components and Predictions</b>",
         y=0.95,
         x=0.5,
         font=dict(size=24)
@@ -190,14 +176,13 @@ fig.update_layout(
     hovermode='x unified'
 )
 
-# Update y-axis titles
 for i in range(1,4):
     fig.update_yaxes(title_text="Value", row=i, col=1)
 
-# Update x-axis for bottom plot only
+# X-axis for bottom plot
 fig.update_xaxes(title_text="Time Step", row=3, col=1)
 
-# Add grid and custom styling
+# Style
 fig.update_layout(
     plot_bgcolor='white',
     paper_bgcolor='white',
