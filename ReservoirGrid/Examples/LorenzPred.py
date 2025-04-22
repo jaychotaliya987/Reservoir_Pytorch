@@ -29,8 +29,7 @@ attractor_samp = attractor[0]
 
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
 
-inputs = attractor_samp[:-1,:].to(device)
-targets = attractor_samp[1:,:].to(device)
+inputs ,targets = = attractor_samp[:-1].to(device), attractor_samp[1:].to(device)
 
 print("Input shape:", inputs.shape)
 print("Target shape:", targets.shape)
@@ -38,7 +37,7 @@ print("Target shape:", targets.shape)
 
 ResLorenz = Reservoir(
     input_dim=3, 
-    reservoir_dim=1000, 
+    reservoir_dim=100, 
     output_dim=3, 
     spectral_radius=0.95, 
     leak_rate=0.3, 
