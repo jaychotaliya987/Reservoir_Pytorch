@@ -16,6 +16,11 @@ class Reservoir(nn.Module):
         self.leak_rate = leak_rate
         self.spectral_radius = spectral_radius
         self.noise_level = noise_level
+        self.sparsity = sparsity
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.sparsity = sparsity
+        self.input_scaling = input_scaling
 
         # Initialize input weights with proper scaling
         self.W_in = torch.randn(reservoir_dim, input_dim) * input_scaling
