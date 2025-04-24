@@ -3,10 +3,11 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
-from Datasets.LorenzAttractor import LorenzAttractor
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from _datasets.LorenzAttractor import LorenzAttractor
 from Models.Reservoir import Reservoir
 
 import plotly.graph_objects as go
@@ -29,7 +30,7 @@ attractor_samp = attractor[0]
 
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
 
-inputs ,targets = = attractor_samp[:-1].to(device), attractor_samp[1:].to(device)
+inputs ,targets = attractor_samp[:-1].to(device), attractor_samp[1:].to(device)
 
 print("Input shape:", inputs.shape)
 print("Target shape:", targets.shape)

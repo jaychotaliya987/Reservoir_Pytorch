@@ -7,7 +7,6 @@ sys.path.append('..')
 from Models.Reservoir import Reservoir
 
 def Test_lyapunov(Model):
-    
     # Get reservoir state norms
     state_norms = [state.norm().item() for state in Model.reservoir_states]
 

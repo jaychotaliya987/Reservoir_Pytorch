@@ -1,3 +1,17 @@
+'''
+Main Reservoir class for the ReservoirGrid project.
+This class implements a reservoir computing model with the following features:
+- Reservoir state update with leaky integration
+- Readout layer for prediction
+- Training of the readout layer with ridge regression
+- Optional training of the reservoir with backpropagation
+- Prediction with optional teacher forcing
+- Saving and loading of the model
+- Echo state property checks
+- Reservoir state and weights visualization and control
+- Device management (CPU/GPU)
+'''
+
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,12 +19,38 @@ import torch
 from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader, Dataset, TensorDataset
+from typing import Optional, Callable, Type, Union
+
+# Default device (can be overridden)
+_DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+_DEFAULT_DTYPE = torch.float32
 
 
 class Reservoir(nn.Module):
-    def __init__(self, input_dim, reservoir_dim, output_dim, 
-                 spectral_radius=0.9, leak_rate=0.3, sparsity=0.9, 
-                 input_scaling=1.0, noise_level=0.01):
+    def __init__(self, input_dim, 
+                 reservoir_dim, 
+                 output_dim, 
+                 spectral_radius=0.9, 
+                 leak_rate=0.3,
+                 sparsity=0.9, 
+                 input_scaling=1.0, 
+                 noise_level=0.01):
+        
+
+        """
+        Initialize the Reservoir class.
+        Args:
+            :param input_dim: Dimension of the input
+            :param reservoir_dim: Dimension of the reservoir
+            :param output_dim: Dimension of the output
+            :param spectral_radius: Spectral radius of the reservoir weights
+            :param leak_rate: Leak rate for the reservoir state update
+            :param sparsity: Sparsity of the reservoir weights
+            :param input_scaling: Scaling factor for the input weights
+            :param noise_level: Noise level for the reservoir state update
+        """
+
+        
         super(Reservoir, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate

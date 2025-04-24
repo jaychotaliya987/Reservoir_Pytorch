@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader, Dataset, TensorDataset
-from typing import Optional, Callable, Type, Union # Added for type hinting
+from typing import Optional, Callable, Type, Union
 
 # Default device (can be overridden)
 _DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,7 +41,7 @@ class ESN(nn.Module):
                  device: Optional[Union[str, torch.device]] = None,
                  dtype: torch.dtype = _DEFAULT_DTYPE):
         """
-        Initializes the Reservoir ESN model.
+        Initializes the Reservoir.
         """
         super(ESN, self).__init__()
 
