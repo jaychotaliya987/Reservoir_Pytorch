@@ -54,7 +54,7 @@ class Reservoir(nn.Module):
                              0 = fully connected, 1 = no connections
             :param input_scaling: Scaling factor for the input weights
                              0-1, Controls the scaling of the input weights.  
-                             Higher for more input drive or When the y-variance is low                                  
+                             Higher for more input drive or When the y-variance is low
             :param noise_level: Noise level for the reservoir state update, 
                                 Higher for more generalized learning
             :param activation: Activation function for the reservoir neurons, defaults to tanh.
