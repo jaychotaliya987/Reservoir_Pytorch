@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from _datasets.LorenzAttractor import LorenzAttractor
-from Models.Reservoir import Reservoir
+from Models.Reservoir_old import Reservoir
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -38,7 +38,7 @@ print("Target shape:", targets.shape)
 
 ResLorenz = Reservoir(
     input_dim=3, 
-    reservoir_dim=100, 
+    reservoir_dim=1000, 
     output_dim=3, 
     spectral_radius=0.95, 
     leak_rate=0.3, 
@@ -49,7 +49,7 @@ ResLorenz = Reservoir(
 ResLorenz.to(device)
 
 
-ResLorenz.train_readout(inputs, targets, Warmup=200)
+ResLorenz.train_readout(inputs, targets, warmup=200)
 predictions = ResLorenz.predict(inputs, steps=10000)
 predictions = predictions.cpu().detach()
 
