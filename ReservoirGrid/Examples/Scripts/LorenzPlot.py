@@ -1,7 +1,7 @@
 import plotly.graph_objects as go
 import numpy as np
 import torch
-from Datasets.LorenzAttractor import LorenzAttractor
+from _datasets.LorenzAttractor import LorenzAttractor
 
 
 attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
