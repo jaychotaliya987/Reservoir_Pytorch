@@ -1,5 +1,3 @@
-**Tags:** #Neural_Networks #Reservoir_Computing #Notes #Python #Machine_Learning #Documentation
-
 # General Training Routine for RC
 
 1. **Data Preparation**: For training a Neural Network (NN), you’ll need ready data. Preparing the data requires:
@@ -74,10 +72,11 @@ Echo State Networks are a type of RNN that use a **reservoir** to map inputs to 
 #### Mathematical Details:
 
 - **Input Sequence**: The input sequence $\mathbf{u}(n) \in \mathbb{R}^{N_u}$ and the desired target $\mathbf{y}^{target} \in \mathbb{R}^{N_y}$ are used for training. The model aims to replicate the output $\mathbf{y}(n)$ as closely as possible to the target $\mathbf{y}^{target}(n)$, with the least Root Mean Squared Error (RMSE), given by:
-$$
 
+$$
 E(y, y^{target}) = \frac{1}{N_y} \sum_{i=1}^{N_y} \sqrt{\frac{1}{T} \sum_{n+1}^{T}(y_i - y^{target}_i(n))^2}
 $$
+
 - You can normalize the RMSE by dividing it by the variance, resulting in the Normalized RMSE (NRMSE), which should range from 0 to 1.
     
 - **Reservoir Dynamics**: The update for the reservoir is given by:
@@ -85,10 +84,13 @@ $$
 $$
 \mathbf{\tilde{X}} = \tanh (\mathbf{W}^{in} [1; \mathbf{u}(n)] + \mathbf{W}\mathbf{X}(n - 1))
 $$
+
 The state $\mathbf{X}(n)$ is then updated as:
+
 $$
 \mathbf{X}(n) = (1 - \alpha) \mathbf{X}(n-1) + \alpha \mathbf{\tilde{X}}(n)
 $$
+
 Here, $\mathbf{\tilde{X}} \in \mathbb{R}^{N_X}$ is the update of the reservoir activations $\mathbf{X} \in \mathbb{R}^{N_X}$, and $\mathbf{W} \in \mathbb{R}^{N_X \times N_X}$ is the weight matrix of the reservoir. The input to the reservoir is represented by $\mathbf{W}^{in} \in \mathbb{R}^{N_X \times (1+N_u)}$, and $[.;.]$ represents vertical concatenation.
 
 - The first activation $\mathbf{\tilde{X}(1)}$ is initialized to 0, i.e., $\mathbf{X(0)} = 0$.
@@ -98,6 +100,7 @@ Here, $\mathbf{\tilde{X}} \in \mathbb{R}^{N_X}$ is the update of the reservoir a
 $$
 \mathbf{y}(n) = \mathbf{W}^{out} [1; \mathbf{u}(n); \mathbf{X}(n)]
 $$
+
 The readout layer combines the input, reservoir activation, and a bias term to compute the output.
 
 #### Key Parameters:
