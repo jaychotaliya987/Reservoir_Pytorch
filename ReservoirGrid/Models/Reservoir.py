@@ -81,7 +81,7 @@ class Reservoir(nn.Module):
         assert self.spectral_radius >= 0.0, "Spectral radius must be non-negative"
         assert self.reservoir_dim > 0, "Reservoir dimension must be positive"
 
-        # --- Initialize Weights (on target device) ---
+        # --- Initialize Weights with scaling ---
         self.W_in = (torch.rand(reservoir_dim, input_dim, device=self.device, dtype=self.dtype) * 2 - 1) * self.input_scaling
 
         # Initialize sparse reservoir weights W
