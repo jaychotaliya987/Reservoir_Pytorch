@@ -65,7 +65,7 @@ Echo State Networks (ESNs) are a special kind of Recurrent Neural Network (RNN).
 
 ---
 
-### Echo State Network (ESN) Explanation
+### Echo State Network (ESN)
 
 Echo State Networks are a type of RNN that use a **reservoir** to map inputs to a high-dimensional space. The network consists of an input layer, a reservoir layer, and a readout layer. The reservoir is not trained but instead has a random, fixed weight matrix. The only trained part is the output layer.
 
