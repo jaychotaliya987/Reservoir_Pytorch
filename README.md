@@ -37,7 +37,7 @@ Echo State Networks (ESNs) are a special kind of Recurrent Neural Network (RNN).
    ```python
    esn = ESN(input_dim=len(train_data), reservoir_dim=200, output_dim=1)
    esn(train_data)  # this will perform forward pass
-```
+   ```
 
 3. **Training**: After the forward pass, we will train the final weights and biases using linear regression. After training, the model will predict the output at $t+1$ using the data at time $t$. The training loop will iterate for $t$ number of epochs to adjust the output weights.
  
