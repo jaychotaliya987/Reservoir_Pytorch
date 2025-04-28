@@ -120,19 +120,20 @@ class Reservoir(nn.Module):
         self._reservoir_states_list = [] # Internal list for forward pass
 
 
-    def forward(self, u: torch.Tensor, reset_state: bool = True) -> torch.Tensor:
+    def forward(self, u: torch.Tensor, reset_state: bool = True) -> torch.Tensor: #? return: torch.Tensor
         """
         Forward pass through the reservoir and readout layer.
 
         Args:
             u (torch.Tensor): Input sequence (SequenceLength x BatchSize x InputDim)
-                               or (SequenceLength x InputDim). Batch size is handled internally.
+                               or (SequenceLength x InputDim), Then Batch size is handled internally.
             reset_state (bool): If True, reset the reservoir state before processing the sequence.
 
         Returns:
             torch.Tensor: Output sequence (SequenceLength x BatchSize x OutputDim or SequenceLength x OutputDim).
         """
-        # --- Input Handling and Device Check ---
+
+        # --- Input Handling and Device Checks ---
         if u.device != self.device:
              raise ValueError(f"Input tensor device ({u.device}) does not match model device ({self.device}). "
                               f"Move input tensor to the correct device before calling forward.")
@@ -140,10 +141,11 @@ class Reservoir(nn.Module):
              print(f"Warning: Input tensor dtype ({u.dtype}) differs from model dtype ({self.dtype}). Casting input.")
              u = u.to(self.dtype)
 
-        # Handle optional batch dimension
+        # Batch dimension - Batch Dimensions are 3 as a convention. If it is of atleast 3 it is already batched. 
+        # Keep in mind to use the convention for inputs. 
         batched_input = u.ndim == 3
         if not batched_input:
-            u = u.unsqueeze(1) # Add batch dimension: T x 1 x Dim
+            u = u.unsqueeze(1) # Add batch dimension: T x 1 x Dim #? Although no time axis, It is a good thing to have a batch dimension like this.
 
         batch_size = u.size(1)
         seq_len = u.size(0)
@@ -151,7 +153,7 @@ class Reservoir(nn.Module):
         # --- State Reset ---
         if reset_state or not hasattr(self, 'reservoir_state') or self.reservoir_state.size(0) != batch_size * self.reservoir_dim:
              # Reshape state for batch processing: (BatchSize * ReservoirDim)
-             # Or maybe (BatchSize x ReservoirDim)? Let's use BatchSize x ReservoirDim for clarity
+             # Or maybe (BatchSize x ReservoirDim)?
              self.reservoir_state = torch.zeros(batch_size, self.reservoir_dim, device=self.device, dtype=self.dtype)
 
         # --- Process Sequence ---
@@ -182,9 +184,6 @@ class Reservoir(nn.Module):
 
         # Stack collected states: SeqLen x BatchSize x ReservoirDim
         all_states = torch.stack(collected_states, dim=0)
-
-        # Store for potential inspection (optional, maybe remove if not needed)
-        self._reservoir_states_list = all_states.detach().clone()
 
         # --- Apply Readout ---
         # Reshape states if needed for linear layer: (SeqLen * BatchSize) x ReservoirDim
@@ -448,18 +447,15 @@ class Reservoir(nn.Module):
     def update_reservoir(self, u: torch.Tensor):
         """
         DEPRECATED / NEEDS REVISITING - The `forward` method now handles state updates.
-        This method seems intended for manual state setting, which is unusual.
+        This method is intended for manual state setting
         If needed, it should be carefully designed based on the specific use case.
 
-        Original intent was likely to manually push a state, but standard ESNs
-        evolve state based on inputs. Consider removing or clarifying purpose.
         """
         print("Warning: `update_reservoir` is deprecated or needs clarification. State is updated via `forward`.")
-        # Original logic (potentially problematic):
-        # device = u.device
-        # self.reservoir_state = u # Directly setting state? Risky.
-        # self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
-        pass # Avoid executing potentially harmful old logic
+        device = u.device
+        self.reservoir_state = u # Directly setting state? Risky.
+        self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
+        pass 
 
 
     # --- Reservoir Control ---
