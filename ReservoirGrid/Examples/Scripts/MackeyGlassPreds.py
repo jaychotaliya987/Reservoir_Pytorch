@@ -11,7 +11,7 @@ import os
 matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
 
 # Ensure the correct path to MackeyGlass module
-sys.path.append(os.path.abspath(os.path.join(__file__, '..', '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from _datasets.MackeyGlassDataset import MackeyGlassDataset
 from Models.Reservoir import Reservoir
 

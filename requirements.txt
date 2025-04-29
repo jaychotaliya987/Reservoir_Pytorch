@@ -6,3 +6,4 @@ seaborn
 torch
 scikit-learn
 ipykernel
+pyqt5
