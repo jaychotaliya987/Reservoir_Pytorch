@@ -1,6 +1,11 @@
 import plotly.graph_objects as go
 import numpy as np
 import torch
+
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from _datasets.LorenzAttractor import LorenzAttractor
 
 
