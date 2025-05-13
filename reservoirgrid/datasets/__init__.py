@@ -13,5 +13,7 @@ Feel free to explore or adapt for your own purposes, but keep in mind this
 module is maintained with internal examples in mind.
 """
 
+from .LorenzAttractor import LorenzAttractor
+from .MackeyGlassDataset import MackeyGlassDataset
 
-__all__ = ['LorentzAttractor', 'MackeyGlass', 'MackeyGlass2DDataset', 'MackeyGlassDataset']
+__all__ = ['LorentzAttractor', 'MackeyGlassDataset']

@@ -7,8 +7,8 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from _datasets.LorenzAttractor import LorenzAttractor
-from Models.Reservoir_old import Reservoir
+from reservoirgrid.datasets import LorenzAttractor
+from reservoirgrid.models import Reservoir
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -37,12 +37,12 @@ print("Target shape:", targets.shape)
 
 
 ResLorenz = Reservoir(
-    input_dim=3, 
-    reservoir_dim=1000, 
-    output_dim=3, 
-    spectral_radius=0.95, 
-    leak_rate=0.3, 
-    sparsity=0.9, 
+    input_dim=3,
+    reservoir_dim=1000,
+    output_dim=3,
+    spectral_radius=0.95,
+    leak_rate=0.5,
+    sparsity=0.85,
     input_scaling=0.5
 )
 

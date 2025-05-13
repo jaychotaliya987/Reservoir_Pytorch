@@ -183,12 +183,12 @@ class Reservoir(nn.Module):
             collected_states.append(self.reservoir_state) # Store state for this time step
 
         # Stack collected states: SeqLen x BatchSize x ReservoirDim
-        all_states = torch.stack(collected_states, dim=0)
+        self.res_states = torch.stack(collected_states, dim=0)
 
         # --- Apply Readout ---
         # Reshape states if needed for linear layer: (SeqLen * BatchSize) x ReservoirDim
         # readout expects (N, *, H_in), where H_in is reservoir_dim
-        output = self.readout(all_states) # SeqLen x BatchSize x OutputDim
+        output = self.readout(self.res_states) # SeqLen x BatchSize x OutputDim
 
         # Remove batch dimension if input was not batched
         if not batched_input:
@@ -220,9 +220,9 @@ class Reservoir(nn.Module):
         # --- Collect Reservoir States ---
         with torch.no_grad():
             # Run forward pass to populate reservoir states, reset state beforehand
-            self.forward(inputs, reset_state=True)
+            self.forward(inputs, reset_state=False)
             # Get the collected states (SeqLen x BatchSize x ReservoirDim or SeqLen x ReservoirDim)
-            X = self._reservoir_states_list # Use the stored states
+            X = self.res_states
 
         # --- Handle Optional Batch Dimension ---
         batched = X.ndim == 3
@@ -232,7 +232,7 @@ class Reservoir(nn.Module):
 
         seq_len, batch_size, _ = X.shape
 
-        # --- Apply Warmup ---
+        # --- Apply Warmup, Discards inputs ---
         if warmup > 0:
             if warmup >= seq_len:
                 raise ValueError(f"Warmup ({warmup}) cannot be >= sequence length ({seq_len})")
