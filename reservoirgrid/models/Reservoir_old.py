@@ -26,7 +26,7 @@ _DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _DEFAULT_DTYPE = torch.float32
 
 
-class Reservoir(nn.Module):
+class Reservoir_old(nn.Module):
     def __init__(self, input_dim, 
                  reservoir_dim, 
                  output_dim, 

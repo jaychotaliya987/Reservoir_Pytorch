@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 sys.path.append('..')
-from Models.Reservoir import Reservoir
+from reservoirgrid.models import Reservoir 
 
 def Test_lyapunov(Model):
     # Get reservoir state norms
