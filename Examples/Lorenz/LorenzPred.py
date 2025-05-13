@@ -42,7 +42,7 @@ ResLorenz = Reservoir(
     output_dim=3,
     spectral_radius=0.95,
     leak_rate=0.5,
-    sparsity=0.85,
+    sparsity=0.5,
     input_scaling=0.5
 )
 
