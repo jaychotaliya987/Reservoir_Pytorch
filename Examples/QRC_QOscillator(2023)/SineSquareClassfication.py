@@ -25,6 +25,3 @@ print("-------------------------")
 
 dataset = SineSquare(sample_len = 10)
 data, label = dataset.get_all()
-
-plt.plot(data)
-plt.show()
