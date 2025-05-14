@@ -19,19 +19,25 @@ The neurons are the basis states of the coupled quantum system, and the reservoi
 ### Coupled quantum oscillator
 
 This is a Hamiltonian of the coupled oscillator:
+
 $$
 \hat{H} = \hbar\omega_{a}\hat{a}^{\dagger} \hat{a} + \hbar\omega_{b}\hat{b}^{\dagger} \hat{b} + \hbar g(\hat{a}\hat{b}^{\dagger} + \hat{a}^{\dagger}\hat{b})
 $$
+
 First term is the energy of oscillator $a$ and the term $\hat{a}^{\dagger}\hat{ a}$ is the excitation number operator. Same for the second term. The last term is the coupling term and a coupling constant $g$.
 
 A harmonic oscillator with a potential,
+
 $$
 V(x) = \frac{1}{2} m\omega^2x^2
 $$
+
 has energy levels,
+
 $$
 E(n) = \hbar \omega \left(n + \frac{1}{2} \right)
 $$
+
 The energy levels are infinite in a single oscillator. A coupled oscillator can also have infinite energy states.
 
 ### Learning tasks with the quantum reservoir
@@ -53,13 +59,17 @@ The result is remarkable and has $99.7\%$ accuracy with 16 measured nodes. To ac
 Even in the classical limit of large dephasing—regime when decoherence ruins the superposition and entanglement—the model still performs better than the classical spintronic oscillator. This suggests that quantum coherence is very important. Better performance is attributed to the transformation of the inputs with unmeasured basis states.
 
 Experimentally, the quantum measurements must be performed multiple times to get the probability amplitude. The states would be measured by coupling a qubit to each resonator and using dispersive readout. The readout is measured multiple times to reduce the statistical error. The variance of the probability amplitude of occupation states is given by,
+
 $$
 \braket{p} = \sqrt{ \frac{p(1 - p)}{N_{\text{shots}}} }
 $$
+
 For higher occupation states, more $N_{\text{shots}}$ are required. It scales with,
+
 $$
 N_{\text{shots}} = (N_{\text{dim}} + 1)^{k}
 $$
+
 $k$ is dependent on the task.
 
 ![N_shots](N_shots.png)
@@ -70,6 +80,7 @@ Each measurement disrupts the quantum system, therefore the sequence of the inpu
 #### 2. Prediction tasks: Requires LSTM (Long-short term memory)
 
 Uses Mackey-Glass equation for prediction. The Mackey-Glass equation is a delay differential equation used to model the dynamics of certain biological and physiological systems, particularly in relation to cellular processes and feedback mechanisms. It is a generalization of the logistic equation and includes a time delay component that makes it capable of exhibiting complex, chaotic behavior. The equation reads,
+
 $$
 \frac{dx(t)}{dt} = \beta\frac{x(t-\tau)}{1+x(t-\tau)^n} - \gamma x(t)
 $$
@@ -98,18 +109,25 @@ This approach is promising because it is very scalable. Recently it has been sho
 ### Quantum Simulations
 
 The quantum open system can be simulated by the Lindblad master equation,
+
 $$
 \dot{\rho} = - i [\hat{H}+\hat{H}_{\text{drive}}, \rho] + \hat{C}\rho \hat{C}^{\dagger} - \frac{1}{2} \hat{C}^{\dagger}\hat{C}\rho - \frac{1}{2}\rho \hat{C}^{\dagger}\hat{C}
 $$
+
 $\hat{C}$ is the Lindblad operator/jump operator. Describes non-unitary effects, decay of photons or dephasing and is given by
+
 $$
 \hat{C} = \sqrt{ \kappa_{a}} \hat{a} + \sqrt{ \kappa_{b} }\hat{b}
 $$
+
 with $\kappa$ as photon decay rates. The drive of the oscillator is given by,
+
 $$
 H_{\text{drive}} = i \epsilon_{a} \sqrt{ 2\kappa_{a} } (\hat{a} - \hat{a}^{\dagger}) + i\epsilon_{b} \sqrt{ 2\kappa_{b} }(\hat{b} - \hat{b}^{\dagger})
 $$
+
 $\epsilon_{a} = \epsilon_{b} = \epsilon_{0} \times X_{i}$, This is how the inputs are encoded into the drive. Higher $\epsilon_{0}$ will occupy the higher level of the oscillator. The reservoir outputs are obtained as the expectation values of the basis states occupations,
+
 $$
 p(n_{a},n_{b}) = \bra{n_{a}n_{b}}\rho\ket{n_{a}n_{b}}
 $$
@@ -117,17 +135,21 @@ $$
 ## Classical Limit of quantum system
 
 The classical limit of quantum system is an approximation where the quantum system loses the superposition and entanglement properties and behaves classically. It is simulated with the following equation,
+
 $$
 \hat{C} = \sqrt{ \kappa_{a} }\hat{a} + \sqrt{ \kappa_{b} } \hat{b} + \sqrt{ \kappa_{\phi}}(\hat{n}_{a}+\hat{n}_{b})
 $$
+
 with $\kappa_{\phi} = 100\,\mathrm{MHz}$.
 
 ## Classical Dynamical Reservoir
 
 The classical dynamical reservoir is simulated with the spin-torque and nano-oscillator as a neuron. The model equation is
+
 $$
 \frac{dp}{dt}= 2(-\Gamma(1+Qp) + W_{\text{in}}I\sigma(1-p))p
 $$
+
 where $p$ is the power of the oscillator, $\Gamma$ is the damping rate, $Q$ is the nonlinearity, $I$ is the current that drives the oscillator and $\sigma$ is a factor related to the geometry of the oscillator. The current $I$ encodes the input data and randomly generated $W_{\text{in}}$ maps it on the reservoir. Reservoir outputs are obtained from the oscillator power $p$ by numerically integrating the equation.
 
 # Leads
