@@ -137,7 +137,7 @@ $$
 The classical limit of quantum system is an approximation where the quantum system loses the superposition and entanglement properties and behaves classically. It is simulated with the following equation,
 
 $$
-\hat{C} = \sqrt{\kappa_{a}} \hat{a}
+\hat{C} = \sqrt{\kappa_{a}} \hat{a} + \sqrt{\kappa_{b}} \hat{b} + \sqrt{\kappa_{\phi}} (\hat{n}_a + \hat{n}_b)
 $$
 
 with $\kappa_{\phi} = 100\,\mathrm{MHz}$.
