@@ -44,7 +44,7 @@ class SineSquare(Dataset):
 
 ### --------- Generation ----------- ###
     def _sin(self):
-        return torch.arange(0, 2*torch.pi, torch.pi/self.discretization)
+        return torch.sin(torch.arange(0, 2*torch.pi, torch.pi/self.discretization))
 
     def _square(self):
         return torch.sign(self._sin())
@@ -82,6 +82,6 @@ class SineSquare(Dataset):
 
     def get_all(self):
         """
-        Returns whole dataset at once
+        Returns whole dataset at once 
         """
         return self.data, self.label
