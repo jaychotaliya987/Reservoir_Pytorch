@@ -137,14 +137,14 @@ $$
 The classical limit of quantum system is an approximation where the quantum system loses the superposition and entanglement properties and behaves classically. It is simulated with the following equation,
 
 $$
-\hat{C} = \sqrt{ \kappa_{a} }\hat{a} + \sqrt{ \kappa_{b} } \hat{b} + \sqrt{ \kappa_{\phi}}(\hat{n}_{a}+\hat{n}_{b})
+\hat{C} = \sqrt{\kappa_{a}} \hat{a} + \sqrt{\kappa_{b}} \hat{b} + \sqrt{\kappa_{\phi}} (\hat{n}_{a} + \hat{n}_{b})
 $$
 
 with $\kappa_{\phi} = 100\,\mathrm{MHz}$.
 
 ## Classical Dynamical Reservoir
 
-The classical dynamical reservoir is simulated with the spin-torque and nano-oscillator as a neuron. The model equation is
+The classical dynamical reservoir is simulated with the śspin-torque and nano-oscillator as a neuron. The model equation is
 
 $$
 \frac{dp}{dt}= 2(-\Gamma(1+Qp) + W_{\text{in}}I\sigma(1-p))p
