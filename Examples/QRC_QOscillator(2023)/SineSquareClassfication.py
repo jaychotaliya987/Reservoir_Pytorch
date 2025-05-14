@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from reservoirgrid.models import CQOscRes
+from reservoirgrid.datasets import SineSquare
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -21,3 +22,9 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 print("-------------------------")
+
+dataset = SineSquare(sample_len = 10)
+data, label = dataset.get_all()
+
+plt.plot(data)
+plt.show()
