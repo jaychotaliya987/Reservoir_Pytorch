@@ -76,7 +76,7 @@ class SineSquare(Dataset):
 
     def _normalize(self, Data):
         # Normalizing the data in range [0,1]
-        return (data - data.min()) / (data.max() - data.min())
+        return (Data - Data.min()) / (Data.max() - Data.min())
 
 ### ------------ Yankers ----------------- ###
 
