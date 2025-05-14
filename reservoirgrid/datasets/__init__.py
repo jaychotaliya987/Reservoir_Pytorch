@@ -15,5 +15,6 @@ module is maintained with internal examples in mind.
 
 from .LorenzAttractor import LorenzAttractor
 from .MackeyGlassDataset import MackeyGlassDataset
+from .SineSquare import SineSquare
 
-__all__ = ['LorentzAttractor', 'MackeyGlassDataset']
+__all__ = ['LorentzAttractor', 'MackeyGlassDataset', 'SineSquare']
