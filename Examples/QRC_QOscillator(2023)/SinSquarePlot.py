@@ -14,7 +14,7 @@ print("-------------------------")
 print("Imports Done!")
 print("-------------------------")
 
-sample_len = 15
+sample_len = 100
 dataset = SineSquare(sample_len)
 data, label = dataset.get_all()
 

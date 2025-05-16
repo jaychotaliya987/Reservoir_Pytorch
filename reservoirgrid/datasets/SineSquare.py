@@ -44,39 +44,38 @@ class SineSquare(Dataset):
 
 ### --------- Generation ----------- ###
     def _sin(self):
-        return torch.sin(torch.arange(0, 2*torch.pi, torch.pi/self.discretization))
+        return torch.sin(torch.arange(0, 2*torch.pi, 2*torch.pi/self.discretization))
 
     def _square(self):
         return torch.sign(self._sin())
 
     def _arrange(self):
-        """
-        Arranges sin and square waves randomly. Optionally normalizes between [0,1]
-        """
+        # Generate base waveforms
+        sin_wave = self._sin()  # shape: [discretization]
+        square_wave = self._square()  # shape: [discretization]
 
-        map = torch.rand(self.sample_len) > 0.5
-        data_list = []
-        label_list = []
+        # Create random selection mask
+        map = torch.rand(self.sample_len) > 0.5  # shape: [sample_len]
 
-        for _ in range(self.sample_len):
-            if map[_]:
-                data_list.append(self._sin())
-                label_list.append(0)
-            else:
-                data_list.append(self._square())
-                label_list.append(1)
+        # Vectorized data construction
+        self.data = torch.where(
+            map.unsqueeze(1),  # shape: [sample_len, 1]
+            sin_wave.unsqueeze(0).expand(self.sample_len, -1),
+            square_wave.unsqueeze(0).expand(self.sample_len, -1)
+        )  # shape: [sample_len, discretization]
 
-        self.data = torch.cat(data_list, dim=0)
-        self.label = torch.tensor(label_list)
-        # Normalizing the data If necessory
+        # Proper label generation (1:1 with data points)
+        self.label = torch.where(
+            map.unsqueeze(1).expand(-1, self.discretization),
+            torch.zeros(self.sample_len, self.discretization, dtype=torch.int),
+            torch.ones(self.sample_len, self.discretization, dtype=torch.int)
+        ).flatten()  # shape: [sample_len * discretization]
+
         if self.normalize:
-            data = self._normalize(self.data)
+            self.data = self._normalize(self.data)
 
         return self.data, self.label
 
-    def _normalize(self, Data):
-        # Normalizing the data in range [0,1]
-        return (Data - Data.min()) / (Data.max() - Data.min())
 
 ### ------------ Yankers ----------------- ###
 
