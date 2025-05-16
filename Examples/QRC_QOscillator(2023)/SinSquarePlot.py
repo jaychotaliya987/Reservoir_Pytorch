@@ -17,8 +17,11 @@ print("-------------------------")
 sample_len = 100
 dataset = SineSquare(sample_len)
 data, label = dataset.get_all()
+data = data.flatten() # removes the batching and get the data into a single row vector for ploting
 
-# Create the figure with a dark theme and elegant styling
+
+if data.ndim != 1: raise "Input is not 1D"
+
 fig = go.Figure()
 
 # Add the line trace
