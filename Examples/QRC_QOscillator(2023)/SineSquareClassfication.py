@@ -23,5 +23,8 @@ else:
     print('Using CPU')
 print("-------------------------")
 
-dataset = SineSquare(sample_len = 10)
+dataset = SineSquare(sample_len = 1000)
 data, label = dataset.get_all()
+data.flatten()
+print("Data shape: ", data.shape)
+print("Label shape: ", label.shape)
