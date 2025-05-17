@@ -1,4 +1,10 @@
 .vscode/
 venv/
 .vs/
-Resources/
+Reservoir_Pytorch/Learning_Pytorch/__pycache__
+Reservoir_Pytorch/reservoirgrid/__pycache__
+Reservoir_Pytorch/reservoirgrid/dataset/__pycache__
+Reservoir_Pytorch/reservoirgrid/helpers/__pycache__
+Reservoir_Pytorch/reservoirgrid/models/__pycache__
+
+
