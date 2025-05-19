@@ -7,3 +7,4 @@ torch
 scikit-learn
 ipykernel
 pyqt5
+qutip
