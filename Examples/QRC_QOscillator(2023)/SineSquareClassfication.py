@@ -23,10 +23,20 @@ else:
     print('Using CPU')
 print("-------------------------")
 
-dataset = SineSquare(sample_len = 1000)
+sample_len = 1000
+dataset = SineSquare(sample_len)
 data, label = dataset.get_all()
+data = data.flatten()
 
 print("Data shape: ", data.shape)
 print("Label shape: ", label.shape)
 
+Q_res = CQOscRes(eps_0=500e6 * np.sqrt(1e-3), input_dim=1, h_truncate=8,
+        omega = [10 * 2 * np.pi, 9 * 2 * np.pi],
+        kappa = [17 * 2 * np.pi, 21 * 2 * np.pi],
+        coupling = 700 * 2 * np.pi,
+        time = 100e-9, inference = 100,
+        output_dim = 1)
 
+rho = Q_res(data[:100])
+print(rho)

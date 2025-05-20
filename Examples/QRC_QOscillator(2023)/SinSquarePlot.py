@@ -14,7 +14,7 @@ print("-------------------------")
 print("Imports Done!")
 print("-------------------------")
 
-sample_len = 10
+sample_len = 1000 
 dataset = SineSquare(sample_len)
 data, label = dataset.get_all()
 data = data.flatten() # removes the batching and get the data into a single row vector for ploting
