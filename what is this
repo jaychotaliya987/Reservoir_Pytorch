@@ -1,0 +1,3 @@
+[33mfc12593[m simulations with qutip, coupled quantum reservoir. Learning how mesolver() works
+[33m9385c20[m Inital work on Coupled harmonic oscillator class
+[33ma79d770[m Generate a new CQOscRes- coupled quantum oscillator reservoir and refector old files, Added new example file for paper reproduction of 2023Quantum oscillator paper

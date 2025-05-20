@@ -13,8 +13,9 @@ class SineSquare(Dataset):
                  normalize: bool = False,
                  dtype: torch.dtype = torch.float32,
                  seed: int = None):
-        self.sample_len = sample_len
+
         self.discretization = 8
+        self.sample_len = int(sample_len/self.discretization)
         self.normalize = normalize
         self.seed = seed
         self.dtype = dtype
@@ -25,7 +26,6 @@ class SineSquare(Dataset):
         self.data, self.label = self._arrange()
 
 ### --------- overrides ------------ ###
-
 
     def __len__(self):
         """
