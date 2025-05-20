@@ -40,3 +40,5 @@ Q_res = CQOscRes(eps_0=500e6 * np.sqrt(1e-3), input_dim=1, h_truncate=8,
 
 rho = Q_res(data[:100])
 print(rho)
+
+
