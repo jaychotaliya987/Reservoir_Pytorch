@@ -12,8 +12,8 @@ matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
 
 # Ensure the correct path to MackeyGlass module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from _datasets.MackeyGlassDataset import MackeyGlassDataset
-from Models.Reservoir import Reservoir
+from reservoirgrid.datasets import MackeyGlassDataset
+from reservoirgrid.models import Reservoir
 
 print("Imports Done!\n")
 
@@ -26,10 +26,10 @@ inputs = inputs.to(device)
 targets = targets.to(device)
 
 # Create reservoir
-reservoir = Reservoir(input_dim=1, reservoir_dim=2000, output_dim=1, 
-                     spectral_radius=1.2, leak_rate=0.3, sparsity=0.95)
-reservoir = reservoir.to(device)
-
+reservoir = Reservoir(input_dim=1, reservoir_dim=500, output_dim=1, 
+                     spectral_radius=0.9, leak_rate=0.3, sparsity=0.95
+                     , input_scaling=0.5)
+reservoir.to(device)
 steps = 1000
 
 # Train the readout layer
@@ -37,7 +37,10 @@ reservoir.train_readout(inputs[:-steps], targets[:-steps], alpha=1e-6)
 
 # Predictions
 
-predictions = reservoir.predict(inputs, steps=steps, teacher_forcing=None, warmup=0)
+predictions = reservoir.predict(inputs, steps=steps)
+
+#test_data = torch.tensor(inputs[-steps:])
+print(f"RMSE: {reservoir.RMSE(predictions, inputs[-steps:])}")
 predictions = predictions.squeeze(1).cpu().numpy()
 
 print(f"Predictions shape: {predictions.shape}")

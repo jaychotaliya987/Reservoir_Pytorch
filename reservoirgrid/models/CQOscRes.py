@@ -14,15 +14,20 @@ class CQOscRes(nn.Module):
     def __init__(self,
             eps_0: float,
             input_dim: int,
-            h_truncate: int, 
             omega: tuple,
             kappa: tuple,
-            coupling: float,
+             coupling: float,
             output_dim: int,
             time: float,
             inference: int,
+            h_truncate: int = 8, 
             device: Optional[Union[str, torch.device]] = None,
             dtype: torch.dtype = _DEFAULT_DTYPE):
+        """
+        Initializes the coupled harmonic oscillator reservoir.
+        args:
+            :param eps_0 :  
+        """
         super().__init__()
 
         self.eps_0 = eps_0
@@ -91,6 +96,7 @@ class CQOscRes(nn.Module):
 
         # Apply readout layer
         self.states = torch.stack(states)
+        self.states = self.readout(self.states)
         return self.states
 
     def measure_p_shots(self, rho: qt.Qobj, observable: qt.Qobj, p_shots: int = 100) -> float:
@@ -113,8 +119,9 @@ class CQOscRes(nn.Module):
         X_np = X.cpu().numpy()
         y_np = y.cpu().numpy()
         
+        print(X_np.shape)
         # Ridge regression solution
-        I = np.eye(X_np.shape[1])
+        I = np.eye(len(X_np))
         theta = np.linalg.inv(X_np.T @ X_np + alpha * I) @ X_np.T @ y_np
         
         # Update readout weights
@@ -130,3 +137,11 @@ class CQOscRes(nn.Module):
             eigvals = np.linalg.eigvalsh(rho)
             print(f"Time {self.time[i]:.2f}: Trace={trace:.4f}, Min Eigenvalue={eigvals[0]:.2e}")
 
+    def classify(self, tesesequance):
+        """Make predictions using the trained readout layer"""
+        classification_list = []
+        return classification_list
+    
+    def RMSE(self, y_true, y_pred):
+        """Calculate Root Mean Square Error"""
+        return torch.sqrt(torch.mean((y_true - y_pred) ** 2))
