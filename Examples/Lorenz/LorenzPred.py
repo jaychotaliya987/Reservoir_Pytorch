@@ -30,7 +30,7 @@ attractor_samp = attractor[0]
 
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
 
-inputs ,targets = attractor_samp[:-1].to(device), attractor_samp[1:].to(device)
+inputs ,targets = attractor_samp[:-1], attractor_samp[1:]
 
 print("Input shape:", inputs.shape)
 print("Target shape:", targets.shape)

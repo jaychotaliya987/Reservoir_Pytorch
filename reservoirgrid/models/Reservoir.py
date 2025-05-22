@@ -135,8 +135,7 @@ class Reservoir(nn.Module):
 
         # --- Input Handling and Device Checks ---
         if u.device != self.device:
-             raise ValueError(f"Input tensor device ({u.device}) does not match model device ({self.device}). "
-                              f"Move input tensor to the correct device before calling forward.")
+            u = u.to(self.device)
         if u.dtype != self.dtype:
              print(f"Warning: Input tensor dtype ({u.dtype}) differs from model dtype ({self.dtype}). Casting input.")
              u = u.to(self.dtype)
@@ -211,7 +210,8 @@ class Reservoir(nn.Module):
             alpha (float): Ridge regularization parameter (lambda).
         """
         if inputs.device != self.device or targets.device != self.device:
-             raise ValueError(f"Input/Target tensor devices ({inputs.device}/{targets.device}) must match model device ({self.device}).")
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
         if inputs.dtype != self.dtype or targets.dtype != self.dtype:
              print(f"Warning: Input/Target dtypes ({inputs.dtype}/{targets.dtype}) differ from model dtype ({self.dtype}). Casting.")
              inputs = inputs.to(self.dtype)
@@ -362,7 +362,7 @@ class Reservoir(nn.Module):
             torch.Tensor: Predicted sequence (Steps x [BatchSize x] OutputDim).
         """
         if initial_input.device != self.device:
-             raise ValueError(f"Initial input tensor device ({initial_input.device}) must match model device ({self.device}).")
+            initial_input = initial_input.to(self.device)
         if initial_input.dtype != self.dtype:
              print(f"Warning: Initial input dtype ({initial_input.dtype}) differs from model dtype ({self.dtype}). Casting.")
              initial_input = initial_input.to(self.dtype)
@@ -443,6 +443,28 @@ class Reservoir(nn.Module):
             result = result.squeeze(1) # Steps x OutputDim
 
         return result
+    
+    def RMSE(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+        """
+        Calculate the Root Mean Square Error (RMSE) between true and predicted values.
+
+        Args:
+            y_true (torch.Tensor): True values.
+            y_pred (torch.Tensor): Predicted values.
+
+        Returns:
+            float: RMSE value.
+        """
+        if y_true.device != self.device or y_pred.device != self.device:
+            y_true = y_true.to(self.device)
+            y_pred = y_pred.to(self.device)
+        if y_true.dtype != self.dtype or y_pred.dtype != self.dtype:
+             print(f"Warning: True/Predicted dtypes ({y_true.dtype}/{y_pred.dtype}) differ from model dtype ({self.dtype}). Casting.")
+             y_true = y_true.to(self.dtype)
+             y_pred = y_pred.to(self.dtype)
+
+        rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
+        return rmse.item()
 
     def update_reservoir(self, u: torch.Tensor):
         """

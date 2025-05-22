@@ -51,7 +51,7 @@ class Reservoir_old(nn.Module):
         """
 
         
-        super(Reservoir, self).__init__()
+        super(Reservoir_old, self).__init__()
         self.reservoir_dim = reservoir_dim
         self.leak_rate = leak_rate
         self.spectral_radius = spectral_radius
