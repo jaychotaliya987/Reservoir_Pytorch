@@ -96,7 +96,7 @@ class CQOscRes(nn.Module):
 
         # Apply readout layer
         self.states = torch.stack(states)
-        self.states = self.readout(self.states)
+        #self.states = self.readout(self.states)
         return self.states
 
     def measure_p_shots(self, rho: qt.Qobj, observable: qt.Qobj, p_shots: int = 100) -> float:
@@ -140,6 +140,7 @@ class CQOscRes(nn.Module):
     def classify(self, tesesequance):
         """Make predictions using the trained readout layer"""
         classification_list = []
+        testseqance = 123 
         return classification_list
     
     def RMSE(self, y_true, y_pred):
