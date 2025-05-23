@@ -173,8 +173,7 @@ class Reservoir(nn.Module):
             recurrent_term = torch.matmul(self.reservoir_state, self.W.T) # BatchSize x ReservoirDim
 
             pre_activation = input_term + recurrent_term + noise
-            activated_state = self.activation(pre_activation) # BatchSize x ReservoirDim
-
+            activated_state = self.activation(pre_activation) # BatchSize x ReservoirDimh
             # Update reservoir state with leaky integration
             self.reservoir_state = ((1 - self.leak_rate) * self.reservoir_state +
                                     self.leak_rate * activated_state)
