@@ -6,6 +6,8 @@ from typing import Optional, Callable, Type, Union
 class SineSquare(Dataset):
     """
     This is a dataset of randomly arranged discretized Sine and Square wave. It outputs a torch.tensor type dataset. 
+    args:
+        param:sample_len - length of the dataset to be created`
     """
 
     def __init__(self, sample_len: int,
