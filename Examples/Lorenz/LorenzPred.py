@@ -28,6 +28,7 @@ attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0],
 
 attractor_samp = attractor[0]
 
+# Normalization is very important
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
 
 inputs ,targets = attractor_samp[:-1], attractor_samp[1:]
