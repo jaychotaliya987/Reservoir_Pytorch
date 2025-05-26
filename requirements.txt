@@ -9,3 +9,5 @@ ipykernel
 pyqt5
 qutip
 plotly
+numba
+dysts

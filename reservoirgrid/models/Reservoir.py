@@ -26,6 +26,29 @@ _DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _DEFAULT_DTYPE = torch.float32
 
 class Reservoir(nn.Module):
+    """
+Initialize the Reservoir class.
+Args:
+    :param input_dim: Input dimensions. Ex: Lorenz has input_dim = 3
+    :param reservoir_dim: Number of reservoir neurons. Keep it as big as computationally possible.
+    :param output_dim: Output dimensions. Ex: Lorenz has output_dim = 3
+    :param spectral_radius: Highest eigenvalue of the reservoir weight matrix
+                            controls the memory of the reservoir. 
+                            0-1 for stability. Higher value for more memory.
+    :param leak_rate: 0-1, controls the leakiness of the reservoir. 
+                      1 = no leak, Fully replaces the state 
+                      0 = full leak, Slow update    
+    :param sparsity: 0-1, Controls the number of connections between the reservoir neurons.
+                     0 = fully connected, 1 = no connections
+    :param input_scaling: Scaling factor for the input weights
+                     0-1, Controls the scaling of the input weights.  
+                     Higher for more input drive or When the y-variance is low
+    :param noise_level: Noise level for the reservoir state update, 
+                        Higher for more generalized learning
+    :param activation: Activation function for the reservoir neurons, defaults to tanh.
+    :param device: Device to run the model on (CPU or GPU), 
+    :param dtype: Data type for the model parameters, defaults to float32.
+"""
     def __init__(self,
              input_dim: int,
              reservoir_dim: int,
@@ -38,29 +61,6 @@ class Reservoir(nn.Module):
              activation: Callable = torch.tanh,
              device: Optional[Union[str, torch.device]] = None,
              dtype: torch.dtype = _DEFAULT_DTYPE):
-        """
-        Initialize the Reservoir class.
-        Args:
-            :param input_dim: Input dimensions. Ex: Lorenz has input_dim = 3
-            :param reservoir_dim: Number of reservoir neurons. Keep it as big as computationally possible.
-            :param output_dim: Output dimensions. Ex: Lorenz has output_dim = 3
-            :param spectral_radius: Highest eigenvalue of the reservoir weight matrix
-                                    controls the memory of the reservoir. 
-                                    0-1 for stability. Higher value for more memory.
-            :param leak_rate: 0-1, controls the leakiness of the reservoir. 
-                              1 = no leak, Fully replaces the state 
-                              0 = full leak, Slow update    
-            :param sparsity: 0-1, Controls the number of connections between the reservoir neurons.
-                             0 = fully connected, 1 = no connections
-            :param input_scaling: Scaling factor for the input weights
-                             0-1, Controls the scaling of the input weights.  
-                             Higher for more input drive or When the y-variance is low
-            :param noise_level: Noise level for the reservoir state update, 
-                                Higher for more generalized learning
-            :param activation: Activation function for the reservoir neurons, defaults to tanh.
-            :param device: Device to run the model on (CPU or GPU), 
-            :param dtype: Data type for the model parameters, defaults to float32.
-        """
         super(Reservoir, self).__init__()
 
         self.input_dim = input_dim
