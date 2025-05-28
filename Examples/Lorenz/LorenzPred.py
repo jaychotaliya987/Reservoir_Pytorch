@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split  
 
 import os
 import sys
@@ -30,138 +31,117 @@ attractor_samp = attractor[0]
 
 # Normalization is very important
 attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
-
 inputs ,targets = attractor_samp[:-1], attractor_samp[1:]
-
-print("Input shape:", inputs.shape)
-print("Target shape:", targets.shape)
-
+train_inputs, test_inputs = train_test_split(inputs, test_size=0.2, shuffle=False, random_state=42)
+train_targets, test_targets = train_test_split(targets, test_size=0.2, shuffle=False, random_state=42)
 
 ResLorenz = Reservoir(
     input_dim=3,
     reservoir_dim=1000,
     output_dim=3,
-    spectral_radius=1,
-    leak_rate=0.5,
-    sparsity=0.90,
+    spectral_radius=0.9,
+    leak_rate=0.3,
+    sparsity=0.95,
     input_scaling=0.5
 )
 
 ResLorenz.to(device)
 
 
-ResLorenz.train_readout(inputs, targets, warmup=200)
-predictions = ResLorenz.predict(inputs, steps=10000)
-predictions = predictions.cpu().detach()
+ResLorenz.train_readout(train_inputs, train_targets, warmup=200)
+time_steps = np.arange(len(test_targets))
+# Generate predictions using test inputs
+with torch.no_grad():
+    predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
 
-fig = go.Figure(data=[go.Scatter3d(
-    x=predictions[:,0].numpy(), 
-    y=predictions[:,1].numpy(), 
-    z=predictions[:,2].numpy(),
-    mode='lines',
-    line=dict(
-        color=predictions[:,2].numpy(),  
-        colorscale='Viridis',            
-        width=3,                         
-        showscale=True                   
-    ),
-    hoverinfo='none'                   
-)])
+error = ResLorenz.RMSE(test_targets[:],predictions[:])
+print(f"RMSE: {error:.4f}")
+predictions = predictions.cpu().numpy()
+test_targets_np = test_targets.cpu().numpy()
 
-fig.update_layout(
-    title={
-        'text': "<b>Lorenz Attractor Predictions</b>",
-        'y':0.9,
-        'x':0.5,
-        'xanchor': 'center',
-        'yanchor': 'top',
-        'font': dict(size=24, family='Arial')
-    },
-    scene=dict(
-        xaxis_title='X Axis',
-        yaxis_title='Y Axis',
-        zaxis_title='Z Axis',
-        xaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-        yaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-        zaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-        bgcolor='rgb(240, 240, 240)',
-        camera=dict(
-            eye=dict(x=1.5, y=1.5, z=0.6) 
-        )
-    ),
-    margin=dict(l=0, r=0, b=0, t=30),  
-    paper_bgcolor='white',
-    height=700,                        
-    width=800
+# Enhanced color scheme matching original
+colors = {
+    'train': '#8da0cb',      
+    'test': '#66c2a5',       
+    'prediction': '#fc8d62', 
+    'divider': 'gray',       
+    'background': 'rgb(240, 240, 240)',
+    'grid': 'rgb(200, 200, 200)'
+}
+
+# Prepare training data for plotting (last 1000 points)
+train_targets_np = train_targets.cpu().numpy()[-1000:]  # Last portion of training data
+train_time_steps = np.arange(-len(train_targets_np), 0) # Negative time steps for training
+
+fig_components = make_subplots(
+    rows=3, cols=1, 
+    shared_xaxes=True,
+    vertical_spacing=0.05,
+    subplot_titles=("X Component", "Y Component", "Z Component")
 )
 
-
-fig.show()
-
-
-# Create figure with subplots
-fig = make_subplots(rows=3, cols=1, 
-                    shared_xaxes=True,
-                    vertical_spacing=0.05,
-                    subplot_titles=("X Component", "Y Component", "Z Component"))
-
-# Color scheme
-colors = ['#8da0cb', '#66c2a5', '#fc8d62']
-divider_color = 'gray'
-
 # Plot each component
-components = ['X', 'Y', 'Z']
-for i, component in enumerate(components, 1):
-    fig.add_trace(go.Scatter(
-        x=np.arange(len(attractor_samp[-1000:, i-1])),
-        y=attractor_samp[-1000:, i-1].numpy(),
+for i, component in enumerate(['X', 'Y', 'Z'], 1):
+    # Training data (before prediction start)
+    fig_components.add_trace(go.Scatter(
+        x=train_time_steps,
+        y=train_targets_np[:, i-1],
         mode='lines',
-        line=dict(color=colors[0], width=2.5),
-        name='Target',
-        legendgroup='target',
+        line=dict(color=colors['train'], width=2.5),
+        name='Training Data',
+        legendgroup='train',
         showlegend=True if i==1 else False
     ), row=i, col=1)
     
-    # Predictions
-    prediction_start = len(attractor_samp[-1000:, i-1]) - 1
-    fig.add_trace(go.Scatter(
-        x=np.arange(prediction_start, prediction_start + len(predictions)),
-        y=predictions[:, i-1].numpy(),
+    # Test data (after prediction start)
+    fig_components.add_trace(go.Scatter(
+        x=time_steps,
+        y=test_targets_np[:, i-1],
         mode='lines',
-        line=dict(color=colors[2], width=2.5, dash='solid'),
+        line=dict(color=colors['test'], width=2.5),
+        name='Test Data',
+        legendgroup='test',
+        showlegend=True if i==1 else False
+    ), row=i, col=1)
+    
+    # Predictions (after prediction start)
+    fig_components.add_trace(go.Scatter(
+        x=time_steps,
+        y=predictions[:, i-1],
+        mode='lines',
+        line=dict(color=colors['prediction'], width=2.5),
         name='Prediction',
         legendgroup='prediction',
         showlegend=True if i==1 else False
     ), row=i, col=1)
     
     # Prediction start line
-    fig.add_vline(
-        x=prediction_start, 
-        line=dict(color=divider_color, width=1, dash='dot'),
+    fig_components.add_vline(
+        x=0, 
+        line=dict(color=colors['divider'], width=1, dash='dot'),
         row=i, col=1
     )
-    
-    # Annotation for first component
-    if i == 1:
-        fig.add_annotation(
-            x=prediction_start,
-            y=np.max(attractor_samp[-1000:, i-1].numpy()),
-            text="Prediction Start",
-            showarrow=True,
-            arrowhead=1,
-            ax=-60,
-            ay=-30,
-            row=1,
-            col=1
-        )
 
-# Update layout
-fig.update_layout(
+# Add annotation for prediction start
+fig_components.add_annotation(
+    x=0,
+    y=np.max(test_targets_np[:, 0]),
+    text="Prediction Start",
+    showarrow=True,
+    arrowhead=1,
+    ax=-60,
+    ay=-30,
+    row=1,
+    col=1
+)
+
+# Enhanced layout matching original style
+fig_components.update_layout(
     title=dict(
-        text="<b>Lorenz Attractor: Components and Predictions</b>",
+        text="<b>Lorenz Attractor: Training, Test and Predictions</b>",
         y=0.95,
         x=0.5,
-        font=dict(size=24)
+        font=dict(size=24, family='Arial')
     ),
     height=800,
     width=1000,
@@ -174,22 +154,132 @@ fig.update_layout(
         x=1
     ),
     margin=dict(t=100),
-    hovermode='x unified'
-)
-
-for i in range(1,4):
-    fig.update_yaxes(title_text="Value", row=i, col=1)
-
-# X-axis for bottom plot
-fig.update_xaxes(title_text="Time Step", row=3, col=1)
-
-# Style
-fig.update_layout(
+    hovermode='x unified',
     plot_bgcolor='white',
-    paper_bgcolor='white',
-    xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)'),
-    yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.3)'),
-    font=dict(family="Arial", size=12)
+    paper_bgcolor='white'
 )
 
-fig.show()
+# Axis labels
+for i in range(1,4):
+    fig_components.update_yaxes(
+        title_text="Value", 
+        row=i, col=1,
+        gridcolor='rgba(200,200,200,0.3)'
+    )
+
+# X-axis settings to show training and test periods
+fig_components.update_xaxes(
+    title_text="Time Step (Prediction starts at 0)", 
+    row=3, col=1,
+    gridcolor='rgba(200,200,200,0.3)',
+    range=[-200, len(test_targets)]  # Show some training period and all test
+)
+
+fig_components.show()
+
+# Enhanced color scheme matching component plots
+colors = {
+    'train': '#8da0cb',      # Light purple-blue
+    'test': '#66c2a5',       # Teal
+    'prediction': '#fc8d62', # Orange
+    'divider': 'gray',
+    'background': 'rgb(240, 240, 240)',
+    'grid': 'rgb(200, 200, 200)'
+}
+
+# Create 3D comparison plot with matching colors
+fig_compare = go.Figure()
+
+# Add test attractor (semi-transparent teal)
+fig_compare.add_trace(go.Scatter3d(
+    x=test_targets_np[:, 0],
+    y=test_targets_np[:, 1],
+    z=test_targets_np[:, 2],
+    mode='lines',
+    line=dict(
+        color=colors['test'],
+        width=4,
+        
+    ),
+    opacity=0.7,  # Semi-transparent
+    name='Test Attractor',
+    hoverinfo='none'
+))
+
+# Add predictions (solid orange)
+fig_compare.add_trace(go.Scatter3d(
+    x=predictions[:, 0],
+    y=predictions[:, 1],
+    z=predictions[:, 2],
+    mode='lines',
+    line=dict(
+        color=colors['prediction'],
+        width=4
+    ),
+    name='Predicted Attractor',
+    hoverinfo='none'
+))
+
+# Enhanced layout with matching style
+fig_compare.update_layout(
+    title={
+        'text': "<b>Lorenz Attractor: Test vs Prediction</b>",
+        'y':0.9,
+        'x':0.5,
+        'xanchor': 'center',
+        'yanchor': 'top',
+        'font': dict(size=24, family='Arial')
+    },
+    scene=dict(
+        xaxis_title='X Axis',
+        yaxis_title='Y Axis',
+        zaxis_title='Z Axis',
+        xaxis=dict(
+            gridcolor=colors['grid'], 
+            showbackground=True,
+            backgroundcolor=colors['background']
+        ),
+        yaxis=dict(
+            gridcolor=colors['grid'],
+            showbackground=True,
+            backgroundcolor=colors['background']
+        ),
+        zaxis=dict(
+            gridcolor=colors['grid'],
+            showbackground=True,
+            backgroundcolor=colors['background']
+        ),
+        bgcolor=colors['background'],
+        camera=dict(
+            eye=dict(x=1.5, y=1.5, z=0.6) 
+        )
+    ),
+    margin=dict(l=0, r=0, b=0, t=30),
+    paper_bgcolor='white',
+    height=700,
+    width=800,
+    legend=dict(
+        yanchor="top",
+        y=0.99,
+        xanchor="left",
+        x=0.01,
+        font=dict(size=12),
+    #font=dict(family="Arial", size=12)
+))
+
+# Add a subtle colorbar to show Z dimension
+fig_compare.update_traces(
+    marker=dict(
+        showscale=True,
+        colorscale='Viridis',  # Keep Z-dimension coloring
+        colorbar=dict(
+            thickness=20,
+            x=0.9,
+            len=0.5,
+            title='Z value'
+        )
+    ),
+    selector={'type':'scatter3d'}
+)
+
+fig_compare.show()
