@@ -65,6 +65,8 @@ def train_and_predict(reservoir_params, warmup=500, prediction_steps=200):
 
 def evaluate(true, pred):
     """Calculate evaluation metrics"""
+    true = true.detach().cpu().numpy()
+    pred = pred.detach().cpu().numpy()
     mse = mean_squared_error(true[:len(pred)], pred)
     divergence = ((true[:len(pred)] - pred)**2).sum(axis=1)
     lyap_time = np.argmax(divergence > 0.1) if any(divergence > 0.1) else len(pred)
@@ -96,10 +98,10 @@ def plot_results(true, pred, title=""):
 def parameter_sweep():
     """Test different reservoir configurations"""
     param_combinations = [
-        {'reservoir_size': 1000, 'spectral_radius': 0.8, 'leak_rate': 0.3, 'sparsity': 0.5, 'input_scaling': 0.1},
-        {'reservoir_size': 1000, 'spectral_radius': 0.85, 'leak_rate': 0.3, 'sparsity': 0.5, 'input_scaling': 0.2},
-        {'reservoir_size': 1000, 'spectral_radius': 0.9, 'leak_rate': 0.3, 'sparsity': 0.5, 'input_scaling': 0.5},
-        {'reservoir_size': 1000, 'spectral_radius': 0.95, 'leak_rate': 0.3, 'sparsity': 0.5, 'input_scaling': 0.7}
+    {'reservoir_size': 1000, 'spectral_radius': 0.7, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
+    {'reservoir_size': 1000, 'spectral_radius': 0.9, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
+    {'reservoir_size': 1000, 'spectral_radius': 1.2, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5}
     ]
     
     results = []
@@ -113,9 +115,10 @@ def parameter_sweep():
             'lyap_time': lyap_time,
             'time': timer() - start_time
         })
-        
-        #plot_results(target_test.numpy()[:200], predictions.numpy()[:200], 
-        #            title=f"Config: {params}")
+        target_test = target_test.detach().cpu()
+        predictions = predictions.detach().cpu()
+        plot_results(target_test.numpy()[:200], predictions.numpy()[:200], 
+                    title=f"Config: {params}")
     
     # Print results summary
     print("\n=== Results Summary ===")
@@ -128,7 +131,7 @@ def parameter_sweep():
 
 if __name__ == "__main__":
     # Run the parameter sweep
-    parameter_sweep()
+    #parameter_sweep()
     
 #    # Example single run with best parameters
 #    print("\nRunning best configuration...")
@@ -140,4 +143,4 @@ if __name__ == "__main__":
 #    print(f"Lyapunov time: {lyap_time} steps")
 #    plot_results(target_test.numpy()[:500], predictions.numpy()[:500], 
 #                title=f"Best Configuration: {best_params}")
-                
+    
