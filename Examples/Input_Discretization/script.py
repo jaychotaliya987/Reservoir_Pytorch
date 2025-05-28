@@ -11,7 +11,6 @@ from sklearn.metrics import mean_squared_error
 from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import LorenzAttractor
 #from dysts.datasets import load_dataset
-import pandas as pd
 
 def normalize_data(data):
     """Normalize data while preserving Lorenz system dynamics"""
@@ -52,15 +51,8 @@ def train_and_predict(reservoir_params, warmup=500, prediction_steps=200):
     reservoir = create_reservoir(**reservoir_params)
     reservoir.train_readout(input_train, target_train, warmup=warmup)
     
-    # Predict in multiple shorter segments
-    predictions = []
-    current_state = input_test[0:1]
-    for _ in range(prediction_steps):
-        pred = reservoir.predict(current_state, steps=1)
-        predictions.append(pred)
-        current_state = pred  # Autoregressive prediction
-    
-    predictions = torch.cat(predictions)
+    predictions = reservoir.predict(input_train, steps=prediction_steps)
+
     return predictions, input_test, target_test
 
 def evaluate(true, pred):
@@ -98,10 +90,11 @@ def plot_results(true, pred, title=""):
 def parameter_sweep():
     """Test different reservoir configurations"""
     param_combinations = [
-    {'reservoir_size': 1000, 'spectral_radius': 0.7, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
-    {'reservoir_size': 1000, 'spectral_radius': 0.9, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
-    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5},
-    {'reservoir_size': 1000, 'spectral_radius': 1.2, 'leak_rate': 0.5, 'sparsity': 0.9, 'input_scaling': 0.5}
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.3, 'sparsity': 0.3, 'input_scaling': 0.7},
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.3, 'sparsity': 0.3, 'input_scaling': 0.7},
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.3, 'sparsity': 0.3, 'input_scaling': 0.7},
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.3, 'sparsity': 0.3, 'input_scaling': 0.7},
+    {'reservoir_size': 1000, 'spectral_radius': 1, 'leak_rate': 0.3, 'sparsity': 0.3, 'input_scaling': 0.7}
     ]
     
     results = []
@@ -130,17 +123,5 @@ def parameter_sweep():
         print(f"Runtime: {res['time']:.2f} seconds")
 
 if __name__ == "__main__":
-    # Run the parameter sweep
-    #parameter_sweep()
-    
-#    # Example single run with best parameters
-#    print("\nRunning best configuration...")
-#    best_params = {'reservoir_size': 1000, 'spectral_radius': , 'leak_rate': 0.2}
-#    predictions, input_test, target_test = train_and_predict(best_params, prediction_steps=500)
-#    mse, lyap_time = evaluate(target_test[:500], predictions[:500])
-#    print(f"\nBest configuration results:")
-#    print(f"MSE: {mse:.4f}")
-#    print(f"Lyapunov time: {lyap_time} steps")
-#    plot_results(target_test.numpy()[:500], predictions.numpy()[:500], 
-#                title=f"Best Configuration: {best_params}")
+    parameter_sweep()
     
