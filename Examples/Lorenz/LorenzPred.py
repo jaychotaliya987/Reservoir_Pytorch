@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 
 from reservoirgrid.datasets import LorenzAttractor
 from reservoirgrid.models import Reservoir
+from reservoirgrid.helpers import utils
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -18,37 +19,49 @@ print("Imports Done!\n")
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
-    print('GPU is available')
+    print('Using GPU')
 else:
     device = torch.device('cpu')
-    print('CPU is available')
+    print('Using CPU')
 
+def from_dysts():
+    Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz_fine.csv", delimiter=",", skip_header=1)[:,1:]
+    Dataset = (Dataset - Dataset.min()) / (Dataset.max() - Dataset.min()) *2 -1
+    inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
+    #inputs, targets = discretization.normalize_data(inputs), discretization.normalize_data(targets)
+    train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
+    train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
+    return train_inputs, train_targets, test_inputs, test_targets
+
+def from_mygen():
 # Generate the Lorenz Attractor data
-attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
+    attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
                             sigma=10.0, b=8/3, r=28.0, seed=42)
+    attractor_samp = attractor[0]
 
-attractor_samp = attractor[0]
+    # Normalization is very important
+    attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
+    inputs ,targets = attractor_samp[:-1], attractor_samp[1:]
+    train_inputs, test_inputs = train_test_split(inputs, test_size=0.2, shuffle=False, random_state=42)
+    train_targets, test_targets = train_test_split(targets, test_size=0.2, shuffle=False, random_state=42)
+    return train_inputs, train_targets, test_inputs, test_targets
 
-# Normalization is very important
-attractor_samp = (attractor_samp - attractor_samp.min()) / (attractor_samp.max() - attractor_samp.min())
-inputs ,targets = attractor_samp[:-1], attractor_samp[1:]
-train_inputs, test_inputs = train_test_split(inputs, test_size=0.2, shuffle=False, random_state=42)
-train_targets, test_targets = train_test_split(targets, test_size=0.2, shuffle=False, random_state=42)
+train_inputs, train_targets, test_inputs, test_targets = from_dysts()
 
 ResLorenz = Reservoir(
     input_dim=3,
-    reservoir_dim=1000,
+    reservoir_dim=1300,
     output_dim=3,
-    spectral_radius=0.9,
-    leak_rate=0.3,
-    sparsity=0.95,
-    input_scaling=0.5
+    spectral_radius=1,
+    leak_rate=0.5,
+    sparsity=0.9,
+    input_scaling=0.5,
+    noise_level = 0.01
 )
 
 ResLorenz.to(device)
-
-
 ResLorenz.train_readout(train_inputs, train_targets, warmup=200)
+print(ResLorenz.res_states)
 time_steps = np.arange(len(test_targets))
 # Generate predictions using test inputs
 with torch.no_grad():
