@@ -2,38 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+
 import sys
-sys.path.append('..')
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from reservoirgrid.models import Reservoir 
-
-def Test_lyapunov(Model):
-    # Get reservoir state norms
-    state_norms = [state.norm().item() for state in Model.reservoir_states]
-
-    # Plot reservoir dynamics
-    plt.figure(figsize=(12, 6))
-    plt.plot(state_norms, label=f"Spectral Radius = {Model.spectral_radius}", color='#AC6600', linewidth=2)
-    plt.xlabel("Time Step", fontsize=14, labelpad=10)
-    plt.ylabel("Reservoir State Norm", fontsize=14, labelpad=10)
-    plt.title("Reservoir Dynamics", fontsize=16, pad=15)
-    plt.grid(visible=True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
-    plt.legend(fontsize=12, loc='upper right', frameon=True, shadow=True, borderpad=1)
-    plt.tight_layout()
-    plt.show()
-    
-    # Approximate Lyapunov Exponent (Δx growth rate)
-    diffs = np.abs(np.diff(state_norms))
-    if len(diffs) > 0:
-        lyap_exp = np.mean(np.log(diffs + 1e-6))  # Small epsilon to avoid log(0)
-        print(f"Approximate Lyapunov Exponent: {lyap_exp:.4f}")
-        if lyap_exp > 0:
-            print("Chaotic Dynamics Detected!")
-        elif lyap_exp < 0:
-            print("Stable / Periodic Dynamics")
-        else:
-            print("Unclear Behavior")
-    else:
-        print("Not enough state changes to compute Lyapunov exponent.")
 
 def test_memory_capacity(Model, max_delay=50, n_trials=10):
     """
@@ -143,6 +116,7 @@ def test_temporal_processing(Model, sequence_length=20):
     """
     Test the reservoir's ability to process temporal sequences
     """
+
     # Generate input sequence
     u = np.zeros((1000, Model.input_dim))
     for i in range(sequence_length, len(u)):
