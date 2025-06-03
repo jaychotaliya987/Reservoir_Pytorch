@@ -13,17 +13,28 @@ from sklearn.model_selection import train_test_split
 
 from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import LorenzAttractor
-from reservoirgrid.helpers import utils
-from reservoirgrid.helpers import viz
-from reservoirgrid.helpers import reservoir_tests
+from reservoirgrid.helpers import utils, viz, reservoir_tests
 
 
-attractor1 = Lorenz().make_trajectory(n=100, pts_per_period=50, return_times= True)
-attractor2 = Lorenz().make_trajectory(n=100, pts_per_period=10, return_times= True)
+save_path = "reservoirgrid/datasets/Lorenz.npy"
 
-attractors = [attractor1[1], attractor2[1]]
+if not os.path.exists(save_path):
+    print("System does not exist, Generating...")
+    times = np.linspace(start=5, stop=100, num= 20)
+    start = timer()
+    system = utils.discretization(Lorenz, times, trajectory_length= 10000)
+    end = timer()
+    print(f"Generation Time: {end - start:.4f} seconds")
+    np.save(save_path, system)
+else:
+    print("System exist, loading from dataset")
+    system = np.load(save_path, allow_pickle=True)
+    print("System loaded")
 
-viz.compare_plot(datasets=attractors, titles=["0.01", "0.02"], figsize=(1920,1080))
-viz.plot_components(attractor1[1], labels=["X","Y","Z"])
-viz.plot_components(attractor2[1], labels=["X","Y","Z"])
+attractor1 = system[0]
 
+#viz.compare_plot(datasets=system[0][1], titles=system[0][0])
+viz.plot_components(attractor1[1], labels=["X","Y","Z"], title=attractor1[0],linewidth=0.1)
+#viz.plot_components(attractor2[1], labels=["X","Y","Z"])
+
+plt.show()
