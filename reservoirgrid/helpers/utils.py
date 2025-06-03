@@ -10,7 +10,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import mean_squared_error
 from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import LorenzAttractor
-#from dysts.datasets import load_dataset
+import dysts
+from dysts.flows import *
 
 def normalize_data(data):
     """
@@ -19,5 +20,20 @@ def normalize_data(data):
     """
     return (data - data.min()) / (data.max() - data.min()) *2 -1
 
-def discretization(data, points):
-    pass
+def make_trajectory_with_dt(data, length, discretization = None):
+    """Generate trajectory with custom time discretizatio when resamplaing == false.
+    
+    Args:
+        data: Dysts dataset class object 
+        length: Number of points to generate
+        discretization: Time step (dt) to use
+        
+    Returns:
+        numpy.ndarray: Generated trajectory
+    """
+    model = data()
+    if discretization is not None:
+        print("discretizing manualy")
+        model.dt = discretization
+        solution = model.make_trajectory(length)
+    return solution
