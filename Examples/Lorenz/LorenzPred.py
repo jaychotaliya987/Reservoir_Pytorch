@@ -2,7 +2,8 @@ import numpy as np
 import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split  
+from sklearn.model_selection import train_test_split 
+from dysts.flows import Lorenz
 
 import os
 import sys
@@ -24,18 +25,23 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-def from_dysts():
-    Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz_fine.csv", delimiter=",", skip_header=1)[:,1:]
-    Dataset = (Dataset - Dataset.min()) / (Dataset.max() - Dataset.min()) *2 -1
-    inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
-    #inputs, targets = discretization.normalize_data(inputs), discretization.normalize_data(targets)
-    train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
-    train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
+def from_dysts(length = 1000, newgen = False):
+    if not newgen:
+        Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz_fine.csv", delimiter=",", skip_header=1)[:,1:]
+        Dataset = (Dataset - Dataset.min()) / (Dataset.max() - Dataset.min()) *2 -1
+        inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
+        train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
+        train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
+    else:
+        Dataset = Lorenz().make_trajectory(length)
+        inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
+        train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
+        train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
     return train_inputs, train_targets, test_inputs, test_targets
 
 def from_mygen():
 # Generate the Lorenz Attractor data
-    attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
+    attractor = LorenzAttractor(sample_len=100, n_samples=1, xyz=[1.0, 1.0, 1.0], 
                             sigma=10.0, b=8/3, r=28.0, seed=42)
     attractor_samp = attractor[0]
 
@@ -46,7 +52,7 @@ def from_mygen():
     train_targets, test_targets = train_test_split(targets, test_size=0.2, shuffle=False, random_state=42)
     return train_inputs, train_targets, test_inputs, test_targets
 
-train_inputs, train_targets, test_inputs, test_targets = from_dysts()
+train_inputs, train_targets, test_inputs, test_targets = from_dysts(length=10000, newgen=False)
 
 ResLorenz = Reservoir(
     input_dim=3,
@@ -60,9 +66,9 @@ ResLorenz = Reservoir(
 )
 
 ResLorenz.to(device)
-ResLorenz.train_readout(train_inputs, train_targets, warmup=200)
-print(ResLorenz.res_states)
+ResLorenz.train_readout(train_inputs, train_targets, warmup=1000)
 time_steps = np.arange(len(test_targets))
+
 # Generate predictions using test inputs
 with torch.no_grad():
     predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
