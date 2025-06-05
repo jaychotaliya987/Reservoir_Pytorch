@@ -21,8 +21,8 @@ def compare_plot(datasets, titles=None, figsize=(12, 8)):
     for i, data in enumerate(datasets):
         ax = axes[i]
 
-        if titles and i < len(titles):
-            ax.set_title(titles[i])
+        #if titles and i < len(titles):
+        #    ax.set_title(titles[i])
 
         if data.ndim == 1:
             ax.plot(data)
@@ -40,7 +40,7 @@ def compare_plot(datasets, titles=None, figsize=(12, 8)):
             ax.remove()
             ax = fig.add_subplot(1, n, i+1, projection='3d')
             ax.plot(data[:,0], data[:,1], data[:,2])
-            ax.set_title(titles[i])
+            #ax.set_title(titles[i])
         else:
             raise ValueError(f"Unsupported data dimension: {data.ndim}")
 
