@@ -83,7 +83,7 @@ def plot_components(trajectory, time=None, labels=None, title=None,
         axs = [axs]  # Ensure axs is iterable
 
     for i, ax in enumerate(axs):
-        ax.scatter(time, trajectory[:, i],
+        ax.plot(time, trajectory[:, i],
                color=colors[i],
                linewidth=linewidth)
         ax.set_ylabel(labels[i], rotation=0, ha='right', va='center')

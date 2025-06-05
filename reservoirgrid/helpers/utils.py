@@ -4,6 +4,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from typing import Union
 from typing import List, Tuple, Any
 import torch
 import numpy as np
@@ -12,6 +13,16 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import mean_squared_error
 from dysts.flows import *
 
+#-------------------- Suppress UserWarning --------------------------#
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="The following arguments have no effect for a chosen solver: `jac`.",
+    category=UserWarning
+)
+#______________________________________________________________________#
+
 def normalize_data(data):
     """
     Normalize data while preserving system dynamics, 
@@ -19,7 +30,7 @@ def normalize_data(data):
     """
     return (data - data.min()) / (data.max() - data.min()) *2 -1
 
-def make_trajectory_with_dt(data, length, discretization = None):
+def discretization_with_dt(data, length, discretization = None):
     """Generate trajectory with custom time discretization when resamplaing == false.
     resampling is false when we want varying number of points per period. This method saves computation 
     time required and gives more accurate results.
@@ -39,8 +50,6 @@ def make_trajectory_with_dt(data, length, discretization = None):
         solution = model.make_trajectory(length, resampling = False, method= "RK45")
     return solution
 
-import numpy as np
-from typing import Union
 
 def discretization(
     system: type,
@@ -78,9 +87,15 @@ def discretization(
                 method="RK45",
                 return_times=return_times
             )
-            results[i] = (pp, sol)  # Assign to structured array
+            results[i] = (pp, sol)
         except Exception as e:
             print(f"Warning: Failed for pp={pp}: {str(e)}")
             results[i] = (pp, None)  # Store None if computation fails
 
     return results
+
+warnings.filterwarnings(
+    "ignore",
+    message="The following arguments have no effect for a chosen solver",
+    category=UserWarning
+)

@@ -15,8 +15,9 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import LorenzAttractor
 from reservoirgrid.helpers import utils, viz, reservoir_tests
 
-
-save_path = "reservoirgrid/datasets/Lorenz.npy"
+system_name = "name"
+path = "reservoirgrid/datasets/" + system_name + ".npy"
+save_path = "reservoirgrid/datasets/Chaotic/HyperLorenz.npy"
 
 if not os.path.exists(save_path):
     print("System does not exist, Generating...")
@@ -32,9 +33,13 @@ else:
     print("System loaded")
 
 attractor1 = system[0]
+attractor2 = system[1]
 
-#viz.compare_plot(datasets=system[0][1], titles=system[0][0])
-viz.plot_components(attractor1[1], labels=["X","Y","Z"], title=attractor1[0],linewidth=0.1)
-#viz.plot_components(attractor2[1], labels=["X","Y","Z"])
+print(system[1][1])
 
+
+viz.compare_plot([system[1][1][:500],system[2][1]][:500])
+viz.plot_components(system[1][1][:500])
+viz.plot_components(system[2][1][:500])
 plt.show()
+
