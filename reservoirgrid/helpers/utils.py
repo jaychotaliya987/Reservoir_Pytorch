@@ -7,6 +7,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from typing import Union
 from typing import List, Tuple, Any
 import torch
+
+from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -99,3 +101,25 @@ warnings.filterwarnings(
     message="The following arguments have no effect for a chosen solver",
     category=UserWarning
 )
+
+def split(dataset:np.ndarray, window:int = 1, **kwargs):
+    """
+    splits dataset into training and testing sequance offsetting
+    inputs and targets with a window. generally 1, but can be overwritten.
+    The inputs are also converted to the torch.tensor type.
+    accepts **kwargs, passed to train_test_split
+    
+    Args:
+        dataset : input dataset, accepts dtypes accepted by sklearn
+        window : offsetting parameter. Target is offsetted by window in the future
+    Returns:
+        train_inputs, test_inputs, train_targets, test_targets 
+
+    """
+    inputs, targets = dataset[:-window], dataset[window:]
+    train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
+    train_inputs = torch.tensor(train_inputs)
+    test_inputs = torch.tensor(test_inputs)
+    train_targets = torch.tensor(train_targets)
+    test_targets = torch.tensor(test_targets)
+    return train_inputs, test_inputs, train_targets, test_targets 
