@@ -21,9 +21,6 @@ def compare_plot(datasets, titles=None, figsize=(12, 8)):
     for i, data in enumerate(datasets):
         ax = axes[i]
 
-        #if titles and i < len(titles):
-        #    ax.set_title(titles[i])
-
         if data.ndim == 1:
             ax.plot(data)
         elif data.shape[1] == 2:
@@ -40,7 +37,8 @@ def compare_plot(datasets, titles=None, figsize=(12, 8)):
             ax.remove()
             ax = fig.add_subplot(1, n, i+1, projection='3d')
             ax.plot(data[:,0], data[:,1], data[:,2])
-            #ax.set_title(titles[i])
+            if titles and i < len(titles):
+                ax.set_title(titles[i])
         else:
             raise ValueError(f"Unsupported data dimension: {data.ndim}")
 
@@ -48,7 +46,7 @@ def compare_plot(datasets, titles=None, figsize=(12, 8)):
 
 
 def plot_components(trajectory, time=None, labels=None, title=None,
-                           figsize=(10, 8), colors=None, linewidth=0.5,
+                           figsize=(10, 8), colors=None, linewidth=1,
                            spacing=0.3):
     """
     Stack trajectory components vertically with independent axes.
