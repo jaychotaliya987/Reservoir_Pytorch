@@ -15,6 +15,10 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import mean_squared_error
 from dysts.flows import *
 
+#------------------ reservoirgrid imports ---------------------#
+from reservoirgrid.models import Reservoir
+#--------------------------------------------------------------#
+
 #-------------------- Suppress UserWarning --------------------------#
 import warnings
 
@@ -122,4 +126,22 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
     test_inputs = torch.tensor(test_inputs)
     train_targets = torch.tensor(train_targets)
     test_targets = torch.tensor(test_targets)
-    return train_inputs, test_inputs, train_targets, test_targets 
+    return train_inputs, test_inputs, train_targets, test_targets
+
+def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+    """
+    Calculate the Root Mean Square Error (RMSE) between true and predicted values.
+    Args:
+        y_true (torch.Tensor): True values.
+        y_pred (torch.Tensor): Predicted values.
+    Returns:
+        float: RMSE value.
+    """
+    
+    rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
+    return rmse.item()
+
+def parameter_sweep(Model, parameter_dict, **kwargs):
+    Model = Reservoir(**kwargs)
+
+    return 2
