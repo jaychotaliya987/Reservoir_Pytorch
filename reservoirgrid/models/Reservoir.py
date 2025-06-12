@@ -117,7 +117,6 @@ class Reservoir(nn.Module):
 
         # --- Initialize state (as buffer on target device) ---
         self.register_buffer('reservoir_state', torch.zeros(reservoir_dim, device=self.device, dtype=self.dtype))
-        self._reservoir_states_list = [] # Internal list for forward pass
 
 
     def forward(self, u: torch.Tensor, reset_state: bool = True) -> torch.Tensor: #? return: torch.Tensor
@@ -274,68 +273,6 @@ class Reservoir(nn.Module):
                 self.readout.bias.zero_()
         print("Readout training complete.")
 
-
-    def finetune(self,
-                 inputs: torch.Tensor,
-                 targets: torch.Tensor,
-                 epochs: int,
-                 lr: float,
-                 criterion_class: Type[nn.Module] = nn.MSELoss,
-                 optimizer_class: Type[optim.Optimizer] = optim.Adam,
-                 print_every: int = 10) -> torch.Tensor:
-        """
-        Fine-tunes the *entire* model (including reservoir weights W_in, W)
-        using backpropagation. Use with caution, as this deviates from the
-        standard ESN fixed-reservoir principle. Ensure reservoir is unfrozen.
-
-        Args:
-            inputs (torch.Tensor): Input sequence (SequenceLength x [BatchSize x] InputDim).
-            targets (torch.Tensor): Target sequence (SequenceLength x [BatchSize x] OutputDim).
-            epochs (int): Number of training epochs.
-            lr (float): Learning rate.
-            criterion_class (Type[nn.Module]): Loss function class (default: MSELoss).
-            optimizer_class (Type[optim.Optimizer]): Optimizer class (default: Adam).
-            print_every (int): Frequency of printing loss updates.
-
-        Returns:
-            torch.Tensor: Tensor containing the loss value for each epoch.
-        """
-        if not self.W_in.requires_grad or not self.W.requires_grad:
-             print("Warning: Finetuning called, but reservoir weights (W_in, W) are frozen. "
-                   "Call Unfreeze_reservoir() first if you intend to train them.")
-
-        if inputs.device != self.device or targets.device != self.device:
-             raise ValueError(f"Input/Target tensor devices ({inputs.device}/{targets.device}) must match model device ({self.device}).")
-        if inputs.dtype != self.dtype or targets.dtype != self.dtype:
-             print(f"Warning: Input/Target dtypes ({inputs.dtype}/{targets.dtype}) differ from model dtype ({self.dtype}). Casting.")
-             inputs = inputs.to(self.dtype)
-             targets = targets.to(self.dtype)
-
-        # Define loss function and optimizer
-        criterion = criterion_class()
-        optimizer = optimizer_class(self.parameters(), lr=lr) # self.parameters() includes W_in, W if requires_grad=True
-
-        losses = torch.zeros(epochs, device=self.device) # Pre-allocate losses tensor
-
-        self.train() # Set model to training mode
-
-        for epoch in range(epochs):
-            optimizer.zero_grad()
-            # Reset state for each epoch pass? Depends on task. Assume yes for typical sequence tasks.
-            output = self(inputs, reset_state=True)
-            loss = criterion(output, targets)
-            loss.backward()
-            optimizer.step()
-
-            losses[epoch] = loss.item() # Store loss
-
-            if (epoch + 1) % print_every == 0 or epoch == epochs - 1:
-                print(f'Finetune Epoch {epoch+1}/{epochs}, Loss: {loss.item():.6f}')
-
-        self.eval() # Set model back to evaluation mode
-        return losses
-
-
     def predict(self,
                 initial_input: torch.Tensor,
                 steps: int,
@@ -442,37 +379,14 @@ class Reservoir(nn.Module):
             result = result.squeeze(1) # Steps x OutputDim
 
         return result
-    
-    def RMSE(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
-        """
-        Calculate the Root Mean Square Error (RMSE) between true and predicted values.
-
-        Args:
-            y_true (torch.Tensor): True values.
-            y_pred (torch.Tensor): Predicted values.
-
-        Returns:
-            float: RMSE value.
-        """
-        if y_true.device != self.device or y_pred.device != self.device:
-            y_true = y_true.to(self.device)
-            y_pred = y_pred.to(self.device)
-        if y_true.dtype != self.dtype or y_pred.dtype != self.dtype:
-             print(f"Warning: True/Predicted dtypes ({y_true.dtype}/{y_pred.dtype}) differ from model dtype ({self.dtype}). Casting.")
-             y_true = y_true.to(self.dtype)
-             y_pred = y_pred.to(self.dtype)
-
-        rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
-        return rmse.item()
 
     def update_reservoir(self, u: torch.Tensor):
         """
-        DEPRECATED / NEEDS REVISITING - The `forward` method now handles state updates.
         This method is intended for manual state setting
         If needed.
 
         """
-        print("Warning: `update_reservoir` is deprecated or needs clarification. State is updated via `forward`.")
+        print("Warning: `update_reservoir` will update the reservoir states manually. Know what you are doing before using this")
         device = u.device
         self.reservoir_state = u # Directly setting state? Risky.
         self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
@@ -540,26 +454,68 @@ class Reservoir(nn.Module):
         print(f"Model loaded from {path} to device {self.device}")
 
 
-    # --- Getters (for inspection) ---
-    def get_reservoir_states(self) -> torch.Tensor:
-        """Returns the states collected during the last forward pass."""
-        if hasattr(self, '_reservoir_states_list'):
-             return self._reservoir_states_list
-        else:
-             return torch.empty(0) # Return empty tensor if no forward pass yet
+    # --- Tunnig and Grid Search ---
 
-    def get_current_state(self) -> torch.Tensor:
-        """Returns the current hidden state of the reservoir."""
-        return self.reservoir_state
+    def finetune(self,
+                 inputs: torch.Tensor,
+                 targets: torch.Tensor,
+                 epochs: int,
+                 lr: float,
+                 criterion_class: Type[nn.Module] = nn.MSELoss,
+                 optimizer_class: Type[optim.Optimizer] = optim.Adam,
+                 print_every: int = 10) -> torch.Tensor:
+        """
+        Fine-tunes the *entire* model (including reservoir weights W_in, W)
+        using backpropagation. Use with caution, as this deviates from the, device=Model.device())
+        standard ESN fixed-reservoir principle. Ensure reservoir is unfrozen.
 
-    def get_readout_layer(self) -> nn.Linear:
-        """Returns the readout layer module."""
-        return self.readout
+        Args:
+            inputs (torch.Tensor): Input sequence (SequenceLength x [BatchSize x] InputDim).
+            targets (torch.Tensor): Target sequence (SequenceLength x [BatchSize x] OutputDim).
+            epochs (int): Number of training epochs.
+            lr (float): Learning rate.
+            criterion_class (Type[nn.Module]): Loss function class (default: MSELoss).
+            optimizer_class (Type[optim.Optimizer]): Optimizer class (default: Adam).
+            print_every (int): Frequency of printing loss updates.
 
-    def get_reservoir_weights(self) -> torch.Tensor:
-        """Returns the reservoir weight matrix W."""
-        return self.W.data # Return data to avoid grad issues if not intended
+        Returns:
+            torch.Tensor: Tensor containing the loss value for each epoch.
+        """
+        if not self.W_in.requires_grad or not self.W.requires_grad:
+             print("Warning: Finetuning called, but reservoir weights (W_in, W) are frozen. "
+                   "Call Unfreeze_reservoir() first if you intend to train them.")
 
-    def get_input_weights(self) -> torch.Tensor:
-        """Returns the input weight matrix W_in."""
-        return self.W_in.data # Return data
+        if inputs.device != self.device or targets.device != self.device:
+             raise ValueError(f"Input/Target tensor devices ({inputs.device}/{targets.device}) must match model device ({self.device}).")
+        if inputs.dtype != self.dtype or targets.dtype != self.dtype:
+             print(f"Warning: Input/Target dtypes ({inputs.dtype}/{targets.dtype}) differ from model dtype ({self.dtype}). Casting.")
+             inputs = inputs.to(self.dtype)
+             targets = targets.to(self.dtype)
+
+        # Define loss function and optimizer
+        criterion = criterion_class()
+        optimizer = optimizer_class(self.parameters(), lr=lr) # self.parameters() includes W_in, W if requires_grad=True
+
+        losses = torch.zeros(epochs, device=self.device) # Pre-allocate losses tensor
+
+        self.train() # Set model to training mode
+
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            # Reset state for each epoch pass? Depends on task. Assume yes for typical sequence tasks.
+            output = self(inputs, reset_state=True)
+            loss = criterion(output, targets)
+            loss.backward()
+            optimizer.step()
+
+            losses[epoch] = loss.item() # Store loss
+
+            if (epoch + 1) % print_every == 0 or epoch == epochs - 1:
+                print(f'Finetune Epoch {epoch+1}/{epochs}, Loss: {loss.item():.6f}')
+
+        self.eval() # Set model back to evaluation mode
+        return losses
+
+
+    def best_hyperparameters():
+        pass
