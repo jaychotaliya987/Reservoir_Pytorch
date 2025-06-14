@@ -15,31 +15,30 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import LorenzAttractor
 from reservoirgrid.helpers import utils, viz, reservoir_tests
 
-system_name = "name"
-path = "reservoirgrid/datasets/" + system_name + ".npy"
-save_path = "reservoirgrid/datasets/Chaotic/HyperLorenz.npy"
 
-if not os.path.exists(save_path):
-    print("System does not exist, Generating...")
-    times = np.linspace(start=5, stop=100, num= 20)
-    start = timer()
-    system = utils.discretization(Lorenz, times, trajectory_length= 10000)
-    end = timer()
-    print(f"Generation Time: {end - start:.4f} seconds")
-    np.save(save_path, system)
+system_name = "Lorenz"
+path = "reservoirgrid/datasets/Chaotic/" + system_name + ".npy"
+
+
+if not os.path.exists(path):
+    print("System does not exist, Generate First")
 else:
-    print("System exist, loading from dataset")
-    system = np.load(save_path, allow_pickle=True)
+    print("System exist, loading from datasets")
+    system = np.load(path, allow_pickle=True)
     print("System loaded")
 
-attractor1 = system[0]
-attractor2 = system[1]
+system = utils.truncate(system)
+input = system[2][1]
+input = utils.normalize_data(input)
 
-print(system[1][1])
+parameter_dict = {
+    "SpectralRadius": [0.7, 0.9, 1.1],
+    "LeakyRate": [0.3, 0.5, 0.7],
+    "InputScaling": [0.3, 0.5, 1.0]
+}
 
+results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict, 
+                        reservoir_dim=1300, input_dim= 3, 
+                        output_dim=3, sparsity=0.9)
 
-viz.compare_plot([system[1][1][:500],system[2][1]][:500])
-viz.plot_components(system[1][1][:500])
-viz.plot_components(system[2][1][:500])
-plt.show()
-
+print(results)

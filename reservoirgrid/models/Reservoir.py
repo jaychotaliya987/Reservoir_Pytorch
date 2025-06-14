@@ -23,7 +23,7 @@ from typing import Optional, Callable, Type, Union
 
 # Default device (can be overridden)
 _DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-_DEFAULT_DTYPE = torch.float32
+_DEFAULT_DTYPE = torch.float64
 
 class Reservoir(nn.Module):
     """
@@ -47,7 +47,7 @@ class Reservoir(nn.Module):
                             Higher for more generalized learning
         :param activation: Activation function for the reservoir neurons, defaults to tanh.
         :param device: Device to run the model on (CPU or GPU), 
-        :param dtype: Data type for the model parameters, defaults to float32.
+        :param dtype: Data type for the model parameters, defaults to float64.
     """
     def __init__(self,
              input_dim: int,
@@ -134,6 +134,7 @@ class Reservoir(nn.Module):
 
         # --- Input Handling and Device Checks ---
         if u.device != self.device:
+            print(f"Warning: inputs are not on the same device as model moving inputs to {device}")
             u = u.to(self.device)
         if u.dtype != self.dtype:
              print(f"Warning: Input tensor dtype ({u.dtype}) differs from model dtype ({self.dtype}). Casting input.")

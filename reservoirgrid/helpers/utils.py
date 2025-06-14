@@ -4,20 +4,18 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from typing import Union
-from typing import List, Tuple, Any
-import torch
+from typing import Union, List, Tuple, Any
+from itertools import product
 
+import torch
 from sklearn.model_selection import train_test_split
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.metrics import mean_squared_error
+
 from dysts.flows import *
 
 #------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.models import Reservoir
-#--------------------------------------------------------------#
+
 
 #-------------------- Suppress UserWarning --------------------------#
 import warnings
@@ -120,12 +118,13 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
         train_inputs, test_inputs, train_targets, test_targets 
 
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
-    train_inputs = torch.tensor(train_inputs)
-    test_inputs = torch.tensor(test_inputs)
-    train_targets = torch.tensor(train_targets)
-    test_targets = torch.tensor(test_targets)
+    train_inputs = torch.tensor(train_inputs).to(device)
+    test_inputs = torch.tensor(test_inputs).to(device)
+    train_targets = torch.tensor(train_targets).to(device)
+    test_targets = torch.tensor(test_targets).to(device)
     return train_inputs, test_inputs, train_targets, test_targets
 
 def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
@@ -141,7 +140,82 @@ def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
     return rmse.item()
 
-def parameter_sweep(Model, parameter_dict, **kwargs):
-    Model = Reservoir(**kwargs)
+def parameter_sweep(inputs, parameter_dict, 
+                    return_targets=False, 
+                    state_downsample=10,
+                    **kwargs):
+    """
+    Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
+    splits the data for RMSE and have a option to return the test sequance and predictions for furthur use.
 
-    return 2
+    Args:
+        inputs: This is a plain input sequance that of type numpy.ndarray
+        parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
+                        1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
+        **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters 
+                    needed for the generation.
+    returns: 
+        results: A dictionary of the parameters with the prediction. Optionlly with the test sequance.
+
+    """   
+
+    #Parameter Combination for the loop
+    param_combi = product(
+        parameter_dict["SpectralRadius"],
+        parameter_dict["LeakyRate"],
+        parameter_dict["InputScaling"]
+    )
+
+    #spliting and generating test and train series
+    train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+
+    results = []
+    # Looping through the parameters of the dict
+    for sr, lr, ins in param_combi:
+        # Generate model for the parameters
+        model = Reservoir(spectral_radius=sr,
+                        leak_rate=lr,
+                        input_scaling=ins,
+                        **kwargs)
+
+        model.train_readout(train_inputs,train_targets, warmup=int(len(train_inputs)*0.2))
+        reservoir_states = (model.res_states).detach().cpu().numpy()
+        with torch.no_grad():
+            prediction = model.predict(train_inputs, steps=len(test_targets))
+
+        rmse = RMSE(test_targets, prediction)
+
+        print(f"rmse:{rmse} with params: {sr,lr,ins}")
+        # Store results
+        results.append({
+            'parameters': {
+                'SpectralRadius': sr,
+                'LeakyRate': lr,
+                'InputScaling': ins
+            },
+            'predictions': prediction.detach().cpu().numpy(),
+            'true value' : test_targets.detach().cpu().numpy() if return_targets else None,
+            'reservoir states': reservoir_states[::state_downsample],
+            'metrics': {
+                'RMSE': rmse,
+            }
+        })
+    return results
+
+
+def truncate(system):
+    """
+    trancate the system to the length of least period sample of the system. 
+
+    Args:
+        system: Accepts an ensamble of the same system but with different point per period.
+    returns the system with the equal number of period instead of points.
+    """
+    PP_array = system['pp'] # Return system's points per period in a list
+
+    l_period = len(system['trajectory'][-1])//PP_array[-1] # Length of the fewest period dataset for referance to make all sample of this exact period
+
+    for i in range(len(PP_array)):
+        num_points = int(l_period * PP_array[i]) # Calculates the points required for l_periods
+        system['trajectory'][i]= system['trajectory'][i][:num_points] # Slices till the points required reached
+    return system

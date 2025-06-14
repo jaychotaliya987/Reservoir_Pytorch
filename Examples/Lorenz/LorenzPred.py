@@ -41,7 +41,7 @@ def from_dysts(length = 1000, newgen = False):
 
 def from_mygen():
 # Generate the Lorenz Attractor data
-    attractor = LorenzAttractor(sample_len=100, n_samples=1, xyz=[1.0, 1.0, 1.0], 
+    attractor = LorenzAttractor(sample_len=10000, n_samples=1, xyz=[1.0, 1.0, 1.0], 
                             sigma=10.0, b=8/3, r=28.0, seed=42)
     attractor_samp = attractor[0]
 
@@ -52,7 +52,8 @@ def from_mygen():
     train_targets, test_targets = train_test_split(targets, test_size=0.2, shuffle=False, random_state=42)
     return train_inputs, train_targets, test_inputs, test_targets
 
-train_inputs, train_targets, test_inputs, test_targets = from_dysts(length=10000, newgen=False)
+train_inputs, train_targets, test_inputs, test_targets = from_mygen()
+
 
 ResLorenz = Reservoir(
     input_dim=3,
@@ -73,7 +74,7 @@ time_steps = np.arange(len(test_targets))
 with torch.no_grad():
     predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
 
-error = ResLorenz.RMSE(test_targets[:],predictions[:])
+error = utils.RMSE(test_targets[:],predictions[:])
 print(f"RMSE: {error:.4f}")
 predictions = predictions.cpu().numpy()
 test_targets_np = test_targets.cpu().numpy()

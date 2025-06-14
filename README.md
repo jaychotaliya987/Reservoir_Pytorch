@@ -92,14 +92,15 @@ $$
 \mathbf{y}(n) = \mathbf{W}^{out} [1; \mathbf{u}(n);\mathbf{X}(n)]
 $$
 
-# Reservoir Production
+## Reservoir Production
 
 The reservoir serves 2 purposes, **(i)** Nonlinear expansion for the input $\mathbf{u}(n)$ and, **(ii)** As a memory of the inputs $\mathbf{u}(n)$. 
 
 > $\mathbf{u}(n)$ is a input. $\mathbf{X}$ is a reservoir activation or weighted input that goes through activation function. $\mathbf{\tilde{X}}$ is a reservoir activation update. The update equation is quite misleading as it is not used to update anything it generates a new activation for the input with history of the past inputs through $\mathbf{\tilde{X}(n-1)}$.
 
 A RC can be seen as, a nonlinear high-dimensional expansion $\mathbf{X}(n)$ of the input signal $\mathbf{u}(n)$. For classification tasks, input data $\mathbf{u}(n)$ which are not linearly separable in the original space $\mathbb{R}^{N_{u}}$ , often become so in the expanded space $\mathbb{R}^{N_{x}}$ of $\mathbf{X}(n)$, where they are separated by $\mathbf{W}^{out}$ .
-## Hyper-parameters
+
+### Hyper-parameters
 
 The global parameters of the Reservoir are,
 
@@ -125,7 +126,7 @@ The global parameters of the Reservoir are,
 	- There is a better way to do this, **Autocorrelation:** Set the $\alpha = \frac{1}{\tau}$ where $\tau$ is a time step when the difference in the intensity between two point is down 37%
 	- look for the paper for more details :  Mantas Lukoševičius, Dan Popovici, Herbert Jaeger, and Udo Siewert. Time warping invariant echo state networks. Technical Report No. 2, Jacobs University Bremen, May 2006.
 
-## Practical Approach to Reservoir Production
+### Practical Approach to Reservoir Production
 
 
 With these practical tips and explanations, you should be able to build and train your Echo State Network (ESN) efficiently and understand the key parameters and data handling for effective training.
@@ -143,9 +144,19 @@ Another practical guide is to plot the reservoir activation to see if the reserv
 
 The general guide about the range is that performance improvement is not found in the nerrow parameter range. Reservoir does not need fine tuning. A general range of parameter will result in the similar performance. 
 
+## Training of Readout
+Common way to train a linear feed forward network is to use Ridge Regression. To train $W^{out}$,
+
+$$
+W^{out} = Y^{target} X^T (XX^T + \beta I)^{-1}
+$$
+
+This is a closed form solution. This just adjusts the output weights that solves the equation. Beta here is a regularization constant. more on that in the next section.
+
+for futher improvements I have also implimented a learning for the reservoir, it is time consuming because of the recurrent connection but if one so please can use the `finetune` module. That will run a BPTT and train the weights of the reservoir iteratively. There is not closed form solution and hance it might be enough to train only for some epochs. How the performance is improved is to be seen. **"Experimentation needed"** 
+
 
 ___
-
 # ReservoirGrid/datasets
 
 The library have some built in datasets to utilize and get you started on using RC. The main game then is to fine tune and make your own Reservoir and use it to predict the dataset.
