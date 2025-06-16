@@ -4,22 +4,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-<<<<<<< HEAD
-from typing import Union
-from typing import List, Tuple, Any
-import torch
-
-from sklearn.model_selection import train_test_split
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.metrics import mean_squared_error
-from dysts.flows import *
-
-#------------------ reservoirgrid imports ---------------------#
-from reservoirgrid.models import Reservoir
-#--------------------------------------------------------------#
-=======
 from typing import Union, List, Tuple, Any
 from itertools import product
 
@@ -43,7 +27,6 @@ def timer(name):
 #------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.models import Reservoir
 
->>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
 
 #-------------------- Suppress UserWarning --------------------------#
 import warnings
@@ -146,14 +129,6 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
         train_inputs, test_inputs, train_targets, test_targets 
 
     """
-<<<<<<< HEAD
-    inputs, targets = dataset[:-window], dataset[window:]
-    train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
-    train_inputs = torch.tensor(train_inputs)
-    test_inputs = torch.tensor(test_inputs)
-    train_targets = torch.tensor(train_targets)
-    test_targets = torch.tensor(test_targets)
-=======
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
@@ -161,7 +136,6 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
     test_inputs = torch.tensor(test_inputs).to(device)
     train_targets = torch.tensor(train_targets).to(device)
     test_targets = torch.tensor(test_targets).to(device)
->>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
     return train_inputs, test_inputs, train_targets, test_targets
 
 def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
@@ -177,12 +151,6 @@ def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
     return rmse.item()
 
-<<<<<<< HEAD
-def parameter_sweep(Model, parameter_dict, **kwargs):
-    Model = Reservoir(**kwargs)
-
-    return 2
-=======
 def parameter_sweep(inputs, parameter_dict, 
                     return_targets=False, 
                     state_downsample=10,
@@ -312,4 +280,3 @@ def pp_sweep(system, parameter_dict,
     Args:
         system: This is a loaded dataset object
     """
->>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
