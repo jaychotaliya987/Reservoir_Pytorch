@@ -4,6 +4,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+<<<<<<< HEAD
 from typing import Union
 from typing import List, Tuple, Any
 import torch
@@ -18,6 +19,31 @@ from dysts.flows import *
 #------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.models import Reservoir
 #--------------------------------------------------------------#
+=======
+from typing import Union, List, Tuple, Any
+from itertools import product
+
+import torch
+from sklearn.model_selection import train_test_split
+import numpy as np
+
+from dysts.flows import *
+
+
+from time import time
+from contextlib import contextmanager
+
+@contextmanager
+def timer(name):
+    """Simple timing context manager"""
+    start = time()
+    yield
+    print(f"[{name}] elapsed: {time()-start:.2f}s")
+
+#------------------ reservoirgrid imports ---------------------#
+from reservoirgrid.models import Reservoir
+
+>>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
 
 #-------------------- Suppress UserWarning --------------------------#
 import warnings
@@ -120,12 +146,22 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
         train_inputs, test_inputs, train_targets, test_targets 
 
     """
+<<<<<<< HEAD
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
     train_inputs = torch.tensor(train_inputs)
     test_inputs = torch.tensor(test_inputs)
     train_targets = torch.tensor(train_targets)
     test_targets = torch.tensor(test_targets)
+=======
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    inputs, targets = dataset[:-window], dataset[window:]
+    train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
+    train_inputs = torch.tensor(train_inputs).to(device)
+    test_inputs = torch.tensor(test_inputs).to(device)
+    train_targets = torch.tensor(train_targets).to(device)
+    test_targets = torch.tensor(test_targets).to(device)
+>>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
     return train_inputs, test_inputs, train_targets, test_targets
 
 def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
@@ -141,7 +177,139 @@ def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
     return rmse.item()
 
+<<<<<<< HEAD
 def parameter_sweep(Model, parameter_dict, **kwargs):
     Model = Reservoir(**kwargs)
 
     return 2
+=======
+def parameter_sweep(inputs, parameter_dict, 
+                    return_targets=False, 
+                    state_downsample=10,
+                    **kwargs):
+                    
+    """
+    Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
+    splits the data for RMSE and have a option to return the test sequance and predictions for furthur use.
+
+    Args:
+        inputs: This is a plain input sequance that of type numpy.ndarray
+        parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
+                        1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
+        **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters 
+                    needed for the generation.
+    returns: 
+        results: A dictionary of the parameters with the prediction. Optionlly with the test sequance.
+
+    """
+    # Pre-process
+    with timer("Data preparation"):
+        train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+        test_targets_np = test_targets.detach().cpu().numpy() if return_targets else None
+        steps_to_predict = len(test_targets)
+        
+        # Convert to tuples to avoid repeated dict lookups
+        sr_values = tuple(parameter_dict["SpectralRadius"])
+        lr_values = tuple(parameter_dict["LeakyRate"])
+        ins_values = tuple(parameter_dict["InputScaling"])
+        param_combi = product(sr_values, lr_values, ins_values)
+        total_combinations = len(sr_values) * len(lr_values) * len(ins_values)
+
+    results = []
+    device = kwargs.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+    
+    for i, (sr, lr, ins) in enumerate(param_combi, 1):
+        iter_start = time()
+        print(f"\nCombination {i}/{total_combinations} - SR: {sr}, LR: {lr}, IS: {ins}")
+        
+        try:
+            # Memory cleanup
+            torch.cuda.empty_cache() if 'cuda' in device else None
+            
+            # Model initialization
+            with timer("Model init"):
+                model = Reservoir(
+                    spectral_radius=sr,
+                    leak_rate=lr,
+                    input_scaling=ins,
+                    **{k:v for k,v in kwargs.items() if k != 'device'}
+                ).to(device)
+            
+            # Training
+            with timer("Training"):
+                model.train_readout(
+                    train_inputs.to(device),
+                    train_targets.to(device),
+                    warmup=int(len(train_inputs)*0.2),
+                    alpha=1e-5  # Ridge parameter
+                )
+            
+            # Prediction
+            with timer("Prediction"):
+                with torch.no_grad():
+                    prediction = model.predict(
+                        train_inputs.to(device), 
+                        steps=steps_to_predict
+                    ).cpu()
+                    rmse = RMSE(test_targets, prediction)
+            
+            # Store results (memory efficiently)
+            result = {
+                'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
+                'metrics': {'RMSE': float(rmse)},  # Convert to Python float
+                'predictions': prediction,
+            }
+            
+            if return_targets:
+                result['true_value'] = test_targets_np
+            
+            if state_downsample > 0:
+                with timer("State extraction"):
+                    result['reservoir_states'] = model.res_states.detach().cpu().numpy()[::state_downsample]
+            
+            results.append(result)
+            print(f"RMSE: {rmse:.4f} | Iter time: {time()-iter_start:.2f}s")
+            
+        except Exception as e:
+            print(f"Failed on combination {i}: {str(e)}")
+            continue
+            
+        finally:
+            # Cleanup
+            del model
+            torch.cuda.empty_cache() if 'cuda' in device else None
+    
+    return results
+
+
+def truncate(system):
+    """
+    trancate the system to the length of least period sample of the system. 
+
+    Args:
+        system: Accepts an ensamble of the same system but with different point per period.
+    returns:
+        system: The system with the equal number of period instead of points.
+    """
+    PP_array = system['pp'] # Return system's points per period in a list
+
+    l_period = len(system['trajectory'][-1])//PP_array[-1] # Length of the fewest period dataset for referance to make all sample of this exact period
+
+    for i in range(len(PP_array)):
+        num_points = int(l_period * PP_array[i]) # Calculates the points required for l_periods
+        system['trajectory'][i]= system['trajectory'][i][:num_points] # Slices till the points required reached
+
+    return system
+
+def pp_sweep(system, parameter_dict, 
+                return_targets=False, 
+                state_downsample=10,
+                pp = 1,
+                **kwargs):
+    """
+    Sweep through the points per period of the dataset. It genertes and trains the reservoir with the parameters_dict
+    but sweep also through the system's point per period index.
+    Args:
+        system: This is a loaded dataset object
+    """
+>>>>>>> db532bfba667b4891889bf837a7ef4266abd7657
