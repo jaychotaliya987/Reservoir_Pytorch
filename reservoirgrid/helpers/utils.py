@@ -13,6 +13,17 @@ import numpy as np
 
 from dysts.flows import *
 
+
+from time import time
+from contextlib import contextmanager
+
+@contextmanager
+def timer(name):
+    """Simple timing context manager"""
+    start = time()
+    yield
+    print(f"[{name}] elapsed: {time()-start:.2f}s")
+
 #------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.models import Reservoir
 
@@ -144,6 +155,7 @@ def parameter_sweep(inputs, parameter_dict,
                     return_targets=False, 
                     state_downsample=10,
                     **kwargs):
+                    
     """
     Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
     splits the data for RMSE and have a option to return the test sequance and predictions for furthur use.
@@ -157,49 +169,84 @@ def parameter_sweep(inputs, parameter_dict,
     returns: 
         results: A dictionary of the parameters with the prediction. Optionlly with the test sequance.
 
-    """   
-
-    #Parameter Combination for the loop
-    param_combi = product(
-        parameter_dict["SpectralRadius"],
-        parameter_dict["LeakyRate"],
-        parameter_dict["InputScaling"]
-    )
-
-    #spliting and generating test and train series
-    train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+    """
+    # Pre-process
+    with timer("Data preparation"):
+        train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+        test_targets_np = test_targets.detach().cpu().numpy() if return_targets else None
+        steps_to_predict = len(test_targets)
+        
+        # Convert to tuples to avoid repeated dict lookups
+        sr_values = tuple(parameter_dict["SpectralRadius"])
+        lr_values = tuple(parameter_dict["LeakyRate"])
+        ins_values = tuple(parameter_dict["InputScaling"])
+        param_combi = product(sr_values, lr_values, ins_values)
+        total_combinations = len(sr_values) * len(lr_values) * len(ins_values)
 
     results = []
-    # Looping through the parameters of the dict
-    for sr, lr, ins in param_combi:
-        # Generate model for the parameters
-        model = Reservoir(spectral_radius=sr,
-                        leak_rate=lr,
-                        input_scaling=ins,
-                        **kwargs)
-
-        model.train_readout(train_inputs,train_targets, warmup=int(len(train_inputs)*0.2))
-        reservoir_states = (model.res_states).detach().cpu().numpy()
-        with torch.no_grad():
-            prediction = model.predict(train_inputs, steps=len(test_targets))
-
-        rmse = RMSE(test_targets, prediction)
-
-        print(f"rmse:{rmse} with params: {sr,lr,ins}")
-        # Store results
-        results.append({
-            'parameters': {
-                'SpectralRadius': sr,
-                'LeakyRate': lr,
-                'InputScaling': ins
-            },
-            'predictions': prediction.detach().cpu().numpy(),
-            'true value' : test_targets.detach().cpu().numpy() if return_targets else None,
-            'reservoir states': reservoir_states[::state_downsample],
-            'metrics': {
-                'RMSE': rmse,
+    device = kwargs.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+    
+    for i, (sr, lr, ins) in enumerate(param_combi, 1):
+        iter_start = time()
+        print(f"\nCombination {i}/{total_combinations} - SR: {sr}, LR: {lr}, IS: {ins}")
+        
+        try:
+            # Memory cleanup
+            torch.cuda.empty_cache() if 'cuda' in device else None
+            
+            # Model initialization
+            with timer("Model init"):
+                model = Reservoir(
+                    spectral_radius=sr,
+                    leak_rate=lr,
+                    input_scaling=ins,
+                    **{k:v for k,v in kwargs.items() if k != 'device'}
+                ).to(device)
+            
+            # Training
+            with timer("Training"):
+                model.train_readout(
+                    train_inputs.to(device),
+                    train_targets.to(device),
+                    warmup=int(len(train_inputs)*0.2),
+                    alpha=1e-5  # Ridge parameter
+                )
+            
+            # Prediction
+            with timer("Prediction"):
+                with torch.no_grad():
+                    prediction = model.predict(
+                        train_inputs.to(device), 
+                        steps=steps_to_predict
+                    ).cpu()
+                    rmse = RMSE(test_targets, prediction)
+            
+            # Store results (memory efficiently)
+            result = {
+                'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
+                'metrics': {'RMSE': float(rmse)},  # Convert to Python float
+                'predictions': prediction,
             }
-        })
+            
+            if return_targets:
+                result['true_value'] = test_targets_np
+            
+            if state_downsample > 0:
+                with timer("State extraction"):
+                    result['reservoir_states'] = model.res_states.detach().cpu().numpy()[::state_downsample]
+            
+            results.append(result)
+            print(f"RMSE: {rmse:.4f} | Iter time: {time()-iter_start:.2f}s")
+            
+        except Exception as e:
+            print(f"Failed on combination {i}: {str(e)}")
+            continue
+            
+        finally:
+            # Cleanup
+            del model
+            torch.cuda.empty_cache() if 'cuda' in device else None
+    
     return results
 
 
@@ -209,7 +256,8 @@ def truncate(system):
 
     Args:
         system: Accepts an ensamble of the same system but with different point per period.
-    returns the system with the equal number of period instead of points.
+    returns:
+        system: The system with the equal number of period instead of points.
     """
     PP_array = system['pp'] # Return system's points per period in a list
 
@@ -218,4 +266,17 @@ def truncate(system):
     for i in range(len(PP_array)):
         num_points = int(l_period * PP_array[i]) # Calculates the points required for l_periods
         system['trajectory'][i]= system['trajectory'][i][:num_points] # Slices till the points required reached
+
     return system
+
+def pp_sweep(system, parameter_dict, 
+                return_targets=False, 
+                state_downsample=10,
+                pp = 1,
+                **kwargs):
+    """
+    Sweep through the points per period of the dataset. It genertes and trains the reservoir with the parameters_dict
+    but sweep also through the system's point per period index.
+    Args:
+        system: This is a loaded dataset object
+    """
