@@ -1,4 +1,6 @@
 from timeit import default_timer as timer
+import gc
+import tracemalloc
 
 import os
 import sys
@@ -22,16 +24,15 @@ path = "../../reservoirgrid/datasets/Chaotic/" + system_name + ".npy"
 
 if not os.path.exists(path):
     print("System does not exist, Generate First")
+    exit()
 else:
     print("System exist, loading from datasets")
     system = np.load(path, allow_pickle=True)
     print("System loaded")
 
 T_system = utils.truncate(system) #truncated system to have same periods
-pp_select = 5
 
-input = T_system[pp_select][1] # selecting the sample 
-input = utils.normalize_data(input)
+#Parameter Dictionaries
 
 parameter_dict = {
     "SpectralRadius": [0.7, 0.8, 0.9, 1.0, 1.1, 1.],
@@ -44,7 +45,7 @@ parameter_dict1 = {
     "LeakyRate": [0.1, 0.3, 0.5],
     "InputScaling": [0.05, 0.2, 0.4]
 }
-
+ 
 parameter_dict2 = {
     "SpectralRadius": [1.0, 1.1, 1.0],
     "LeakyRate": [0.7, 0.9, 0.95],
@@ -57,12 +58,34 @@ parameter_dict_single = {
     "InputScaling": [0.5]
 }
 
-results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict1, 
+#loop to calculate whole system with the parameter dict. Calculates 20 system with  
+for pp_select in range (len(T_system)):
+    print(f"selected point per periods: {T_system[pp_select][0]}")
+    start = timer()
+    tracemalloc.start()
+    snapshot1 = tracemalloc.take_snapshot()
+
+    input = T_system[pp_select][1]
+    input = utils.normalize_data(input)
+
+    results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict, 
                         reservoir_dim=1300, input_dim= 3, 
                        output_dim=3, sparsity=0.9, return_targets=True)
+    
 
-pp_num = str(T_system[pp_select][0])
-result_path = "results/" + system_name + "/" + pp_num + "_dict1" + ".pkl"
+    pp_num = str(T_system[pp_select][0])
+    result_path = "results/" + system_name + "/" + pp_num + ".pkl"
 
-with open(result_path , 'wb') as f:
-    pickle.dump(results, f)
+    with open(result_path , 'wb') as f:
+        pickle.dump(results, f)
+
+    #releases memory of results, already saved to harddrive
+    del results
+    gc.collect()
+
+    end = timer()
+    snapshot2 = tracemalloc.take_snapshot()
+    stats = snapshot2.compare_to(snapshot1, 'lineno')
+
+    print(f"Memory released by deleting results: {stats[0].size_diff / 10**6:.2f} MB")
+    print(f"loop time {end - start:.4f} seconds\n")

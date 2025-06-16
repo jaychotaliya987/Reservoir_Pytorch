@@ -60,7 +60,7 @@ def discretization_with_dt(data, length, discretization = None):
     """
     model = data()
     if discretization is not None:
-        print("discretizing manualy")
+        print("discretizing manually")
         model.dt = discretization
         solution = model.make_trajectory(length, resampling = False, method= "RK45")
     return solution
@@ -117,7 +117,7 @@ warnings.filterwarnings(
 
 def split(dataset:np.ndarray, window:int = 1, **kwargs):
     """
-    splits dataset into training and testing sequance offsetting
+    splits dataset into training and testing sequence offsetting
     inputs and targets with a window. generally 1, but can be overwritten.
     The inputs are also converted to the torch.tensor type.
     accepts **kwargs, passed to train_test_split
@@ -129,7 +129,7 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
         train_inputs, test_inputs, train_targets, test_targets 
 
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
     train_inputs = torch.tensor(train_inputs).to(device)
@@ -158,22 +158,23 @@ def parameter_sweep(inputs, parameter_dict,
                     
     """
     Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
-    splits the data for RMSE and have a option to return the test sequance and predictions for furthur use.
+    splits the data for RMSE and have a option to return the test sequence and predictions for furthur use.
 
     Args:
-        inputs: This is a plain input sequance that of type numpy.ndarray
+        inputs: This is a plain input sequence that of type numpy.ndarray
         parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
                         1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
         **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters 
                     needed for the generation.
     returns: 
-        results: A dictionary of the parameters with the prediction. Optionlly with the test sequance.
+        results: A dictionary of the parameters with the prediction. Optionally with the test sequance.
 
     """
     # Pre-process
     with timer("Data preparation"):
         train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
-        test_targets_np = test_targets.detach().cpu().numpy() if return_targets else None
+        test_targets = test_targets.detach().cpu()
+        test_targets_np = test_targets.numpy() if return_targets else None
         steps_to_predict = len(test_targets)
         
         # Convert to tuples to avoid repeated dict lookups
@@ -201,13 +202,13 @@ def parameter_sweep(inputs, parameter_dict,
                     leak_rate=lr,
                     input_scaling=ins,
                     **{k:v for k,v in kwargs.items() if k != 'device'}
-                ).to(device)
+                )
             
             # Training
             with timer("Training"):
                 model.train_readout(
-                    train_inputs.to(device),
-                    train_targets.to(device),
+                    train_inputs,
+                    train_targets,
                     warmup=int(len(train_inputs)*0.2),
                     alpha=1e-5  # Ridge parameter
                 )
@@ -216,7 +217,7 @@ def parameter_sweep(inputs, parameter_dict,
             with timer("Prediction"):
                 with torch.no_grad():
                     prediction = model.predict(
-                        train_inputs.to(device), 
+                        train_inputs, 
                         steps=steps_to_predict
                     ).cpu()
                     rmse = RMSE(test_targets, prediction)
