@@ -1,7 +1,10 @@
 from timeit import default_timer as timer
+import gc
+import tracemalloc
 
 import os
 import sys
+import pickle
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from typing import Union, List, Tuple, Any
@@ -270,14 +273,5 @@ def truncate(system):
 
     return system
 
-def pp_sweep(system, parameter_dict, 
-                return_targets=False, 
-                state_downsample=10,
-                pp = 1,
-                **kwargs):
-    """
-    Sweep through the points per period of the dataset. It genertes and trains the reservoir with the parameters_dict
-    but sweep also through the system's point per period index.
-    Args:
-        system: This is a loaded dataset object
-    """
+
+

@@ -19,8 +19,8 @@ from reservoirgrid.datasets import LorenzAttractor
 from reservoirgrid.helpers import utils, viz, reservoir_tests
 
 
-system_name = "Lorenz"
-path = "../../reservoirgrid/datasets/Chaotic/" + system_name + ".npy"
+system_name = "/Quasiperiodic/CaTwoPlusQuasiperiodic"
+path = "../../reservoirgrid/datasets/Quasiperiodic/" + system_name + ".npy"
 
 if not os.path.exists(path):
     print("System does not exist, Generate First")
@@ -57,6 +57,54 @@ parameter_dict_single = {
     "LeakyRate": [0.5],
     "InputScaling": [0.5]
 }
+
+#loop to calculate whole system with the parameter dict. Calculates 20 system with  
+for pp_select in range (len(T_system)):
+    print(f"selected point per periods: {T_system[pp_select][0]}")
+    start = timer()
+    tracemalloc.start()
+    snapshot1 = tracemalloc.take_snapshot()
+
+    input = T_system[pp_select][1]
+    input = utils.normalize_data(input)
+
+    results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict, 
+                        reservoir_dim=1300, input_dim= 3, 
+                       output_dim=3, sparsity=0.9, return_targets=True)
+    
+
+    pp_num = str(T_system[pp_select][0])
+    result_path = "results/" + system_name + "/" + pp_num + ".pkl"
+
+    with open(result_path , 'wb') as f:
+        pickle.dump(results, f)
+
+    #releases memory of results, already saved to harddrive
+    del results
+    gc.collect()
+
+    end = timer()
+    snapshot2 = tracemalloc.take_snapshot()
+    stats = snapshot2.compare_to(snapshot1, 'lineno')
+
+    print(f"Memory released by deleting results: {stats[0].size_diff / 10**6:.2f} MB")
+    print(f"loop time {end - start:.4f} seconds\n")
+
+
+
+
+system_name = "Torus"
+path = "../../reservoirgrid/datasets/Quasiperiodic/" + system_name + ".npy"
+
+if not os.path.exists(path):
+    print("System does not exist, Generate First")
+    exit()
+else:
+    print("System exist, loading from datasets")
+    system = np.load(path, allow_pickle=True)
+    print("System loaded")
+
+T_system = utils.truncate(system) #truncated system to have same periods
 
 #loop to calculate whole system with the parameter dict. Calculates 20 system with  
 for pp_select in range (len(T_system)):

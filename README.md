@@ -155,6 +155,13 @@ This is a closed form solution. This just adjusts the output weights that solves
 
 for futher improvements I have also implimented a learning for the reservoir, it is time consuming because of the recurrent connection but if one so please can use the `finetune` module. That will run a BPTT and train the weights of the reservoir iteratively. There is not closed form solution and hance it might be enough to train only for some epochs. How the performance is improved is to be seen. **"Experimentation needed"** 
 
+### Regularization
+
+The weights of the output, $W^{out}$ should be traced. The higher value of the weights will result 
+will amplifies tiny differences between different dimensions of input signal $u(n)$. Those 
+deviations in reservoir network can propagate and increase exponantially, as the connections are 
+recurrent. To negate this effect we use regularization. The term $\beta$ in the Ridge regression is 
+the regularization term. 
 
 ___
 # ReservoirGrid/datasets
