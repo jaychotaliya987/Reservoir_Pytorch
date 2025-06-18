@@ -277,6 +277,3 @@ def truncate(system):
         system['trajectory'][i]= system['trajectory'][i][:num_points] # Slices till the points required reached
 
     return system
-
-
-
