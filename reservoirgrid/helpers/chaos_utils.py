@@ -1,5 +1,7 @@
 import torch
 from sklearn.model_selection import train_test_split
+from scipy.special import rel_entr
+from scipy.spatial.distance import pdist, squareform
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -103,6 +105,38 @@ def lyapunov_time_from_fit(true, pred, fit_range=0.5):
     # Lyapunov time is inverse of slope
     return 1.0 / slope if slope > 0 else float('inf')
 
+
+def KLdivergence(true:np.ndarray, predicted: np.ndarray, bins: int):
+    """
+    Calculates the Kullback–Leibler (KL) divergence of the true and predicted system
+    
+    Arguments:
+        true: Numpy array of test_targets
+        predicted: Numpy array of predicted array from the reservoir
+        bins: number of bins for histogram generation
+    Returns: 
+        KLDivergence: a float    
+    """
+    all_data = np.vstack([true, predicted])
+
+    # Compute common bin edges
+    ranges = [(np.min(all_data[:, i]), np.max(all_data[:, i])) for i in range(all_data.shape[1])]
+
+    H_true, _ = np.histogramdd(true, bins=bins, range=ranges, density=True)
+    H_pred, _ = np.histogramdd(predicted, bins=bins, range=ranges, density=True)
+
+    # Flatten and normalize
+    P = H_true.flatten() + 1e-10
+    Q = H_pred.flatten() + 1e-10
+
+    P /= P.sum()
+    Q /= Q.sum()
+    
+    kl_div = np.sum(rel_entr(P, Q))
+    
+    return kl_div.item()
+    
+    
 if __name__ == "__main__":
     
     Model = Reservoir(
