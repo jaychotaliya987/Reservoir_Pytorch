@@ -11,3 +11,6 @@ qutip
 plotly
 numba
 dysts
+pyts
+ripser
+persim
