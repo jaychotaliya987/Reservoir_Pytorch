@@ -135,8 +135,48 @@ def KLdivergence(true:np.ndarray, predicted: np.ndarray, bins: int):
     kl_div = np.sum(rel_entr(P, Q))
     
     return kl_div.item()
+
+
+def correlation_dimension(data, r_vals):
+    """
+    """
+    N = len(data)
+    dists = squareform(pdist(data))  # pairwise distances
+    C = []
+    for r in r_vals:
+        count = np.sum(dists < r) - N  # remove diagonal
+        C_r = count / (N * (N - 1))
+        C.append(C_r)
+    return np.array(C)
+
+
+def comparive_correlation_dim(true: np.ndarray , prediction:np.ndarray,  r_vals:np.ndarray = np.logspace(-3,0,50)):
+    """
+    """
+    pred_c = correlation_dimension(predictions, r_vals)
+    true_c = correlation_dimension(truth, r_vals)
     
+    fit_range = (r_vals > 0.01) & (r_vals < 0.1)
+    slope1 = np.polyfit(np.log(r_vals[fit_range]), np.log(pred_c[fit_range]), 1)[0]
+    slope2 = np.polyfit(np.log(r_vals[fit_range]), np.log(true_c[fit_range]), 1)[0]
+
+    corr = slope1 - slope2
+
+    return corr
+
+
+def psd_errors(true: np.ndarray , prediction:np.ndarray, cos_sim:bool =False):
+    """
+    returns Power spectrum errors and/or cosine simiilarity of the ground truth and predictions
     
+    """
+    f, P_true = welch(true[:, 0], fs=1.0, nperseg=1024)
+    _, P_pred = welch(prediction[:, 0], fs=1.0, nperseg=1024)
+
+    psd_error = np.linalg.norm(P_true - P_pred)
+    cos_sim = cosine_similarity(P_true.reshape(1, -1), P_pred.reshape(1, -1))[0][0]
+    return psd_error, cos_sim if cos_sim else psd_error
+
 if __name__ == "__main__":
     
     Model = Reservoir(
