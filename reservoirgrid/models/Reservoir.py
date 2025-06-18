@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 from typing import Optional, Callable, Type, Union
 
 # Default device (can be overridden)
-_DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+_DEFAULT_DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 _DEFAULT_DTYPE = torch.float64
 
 class Reservoir(nn.Module):
@@ -117,7 +117,7 @@ class Reservoir(nn.Module):
 
         # --- Initialize state (as buffer on target device) ---
         self.register_buffer('reservoir_state', torch.zeros(reservoir_dim, device=self.device, dtype=self.dtype))
-
+       
 
     def forward(self, u: torch.Tensor, reset_state: bool = True) -> torch.Tensor: #? return: torch.Tensor
         """

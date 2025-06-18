@@ -132,13 +132,13 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
         train_inputs, test_inputs, train_targets, test_targets 
 
     """
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    #device = "cuda" if torch.cuda.is_available() else "cpu"
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(inputs, targets, shuffle=False, **kwargs)
-    train_inputs = torch.tensor(train_inputs).to(device)
-    test_inputs = torch.tensor(test_inputs).to(device)
-    train_targets = torch.tensor(train_targets).to(device)
-    test_targets = torch.tensor(test_targets).to(device)
+    train_inputs = torch.tensor(train_inputs)
+    test_inputs = torch.tensor(test_inputs)
+    train_targets = torch.tensor(train_targets)
+    test_targets = torch.tensor(test_targets)
     return train_inputs, test_inputs, train_targets, test_targets
 
 def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
@@ -188,7 +188,10 @@ def parameter_sweep(inputs, parameter_dict,
         total_combinations = len(sr_values) * len(lr_values) * len(ins_values)
 
     results = []
-    device = kwargs.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    train_inputs = train_inputs.to(device, non_blocking=True)
+    test_inputs = test_inputs.to(device, non_blocking=True) 
+    train_targets = train_targets.to(device, non_blocking=True)
     
     for i, (sr, lr, ins) in enumerate(param_combi, 1):
         iter_start = time()
@@ -196,7 +199,8 @@ def parameter_sweep(inputs, parameter_dict,
         
         try:
             # Memory cleanup
-            torch.cuda.empty_cache() if 'cuda' in device else None
+            if device.type == 'cuda': # This works because type is still 'cuda' device is 'cuda:0'
+                torch.cuda.empty_cache()
             
             # Model initialization
             with timer("Model init"):
@@ -249,7 +253,8 @@ def parameter_sweep(inputs, parameter_dict,
         finally:
             # Cleanup
             del model
-            torch.cuda.empty_cache() if 'cuda' in device else None
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
     
     return results
 
