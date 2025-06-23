@@ -1,24 +1,13 @@
-from timeit import default_timer as timer
-import gc
-import tracemalloc
+import time
+from contextlib import contextmanager
+from typing import Union, List, Tuple, Any, Optional
 
-import os
-import sys
-import pickle
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-from typing import Union, List, Tuple, Any
-from itertools import product
-
+import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
-import numpy as np
 
-from dysts.flows import *
-
-
-from time import time
-from contextlib import contextmanager
+# Local imports
+from reservoirgrid.models import Reservoir
 
 @contextmanager
 def timer(name):
@@ -173,6 +162,7 @@ def parameter_sweep(inputs, parameter_dict,
         results: A dictionary of the parameters with the prediction. Optionally with the test sequance.
 
     """
+    from itertools import product
     # Pre-process
     with timer("Data preparation"):
         train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
