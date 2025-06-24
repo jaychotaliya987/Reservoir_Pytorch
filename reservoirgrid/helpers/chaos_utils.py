@@ -2,6 +2,8 @@ import torch
 from sklearn.model_selection import train_test_split
 from scipy.special import rel_entr
 from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy.signal import welch
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -85,7 +87,7 @@ def comparative_lyapunov_time(test_targets, predictions, threshold=0.1):
     """
     errors = np.linalg.norm(predictions - test_targets, axis=1)
     diverged = np.where(errors > threshold)[0]
-    return diverged[0] if len(diverged) > 0 else len(errors)
+    return diverged[0].item() if len(diverged) > 0 else len(errors)
 
 def lyapunov_time_from_fit(true, pred, fit_range=0.5):
     """Calculate Lyapunov time via exponential fit of error growth"""
@@ -165,7 +167,7 @@ def comparive_correlation_dim(true: np.ndarray , prediction:np.ndarray,  r_vals:
     return corr
 
 
-def psd_errors(true: np.ndarray , prediction:np.ndarray, cos_sim:bool =False):
+def psd_errors(true: np.ndarray , prediction:np.ndarray, return_cos_sim:bool =False):
     """
     returns Power spectrum errors and/or cosine simiilarity of the ground truth and predictions
     
@@ -174,8 +176,12 @@ def psd_errors(true: np.ndarray , prediction:np.ndarray, cos_sim:bool =False):
     _, P_pred = welch(prediction[:, 0], fs=1.0, nperseg=1024)
 
     psd_error = np.linalg.norm(P_true - P_pred)
-    cos_sim = cosine_similarity(P_true.reshape(1, -1), P_pred.reshape(1, -1))[0][0]
-    return psd_error, cos_sim if cos_sim else psd_error
+
+    if return_cos_sim:
+        cos_sim = cosine_similarity(P_true.reshape(1, -1), P_pred.reshape(1, -1))[0][0]
+        return psd_error.item(), cos_sim.item()
+    else: 
+        return psd_error.item()
 
 if __name__ == "__main__":
     
