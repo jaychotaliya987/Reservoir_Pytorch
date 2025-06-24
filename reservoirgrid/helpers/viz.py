@@ -1,8 +1,13 @@
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
 from matplotlib.colors import to_hex
 import matplotlib.cm as cm
+from typing import Union
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+
+from reservoirgrid.models import Reservoir
 
 def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis', 
                  line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)'):
@@ -220,3 +225,236 @@ def plot_components(trajectory, time=None, labels=None, title=None,
         fig.layout.annotations[i].update(x=0.01, xanchor='left', font=dict(size=12))
     
     fig.show()
+
+
+def visualize_reservoir_states(
+    model: Union[Reservoir, dict], 
+    n_units: int = 8,
+    time_window: tuple = (None, None),
+    plot_type: str = 'line',
+    show_distribution: bool = True
+) -> go.Figure:
+    """
+    Enhanced visualization of reservoir unit activations with multiple analysis tools.
+    
+    Args:
+        model: Reservoir model or result dictionary containing 'reservoir_states'
+        n_units: Number of reservoir units to visualize (randomly sampled)
+        time_window: Tuple of (start, end) indices to zoom in on specific time period
+        plot_type: Type of visualization ('line', 'heatmap', or 'both')
+        show_distribution: Whether to show activation distribution histograms
+    
+    Returns:
+        plotly.graph_objects.Figure: Interactive visualization figure
+    
+    Interpretation Guide:
+        - Healthy reservoirs show:
+            * Diverse activation patterns (not all identical)
+            * Reasonable amplitude (-1 to 1 range)
+            * Mix of periodic and chaotic behaviors
+        - Problem signs:
+            * Flat lines → Dead units
+            * Saturated activations → Poor input scaling
+            * Synchronized units → Lack of separation
+            * Exploding values → Stability issues
+    """
+    # Extract states from model or results dict
+    if isinstance(model, dict):
+        states = model.get('reservoir_states', None)
+        if states is None:
+            raise ValueError("Result dictionary must contain 'reservoir_states'")
+        if isinstance(states, torch.Tensor):
+            states = states.cpu().numpy()
+    else:
+        if not hasattr(model, 'reservoir_states'):
+            raise AttributeError("Model must have 'reservoir_states' attribute")
+        states = model.reservoir_states.cpu().numpy()
+    
+    # Transpose to (time_steps, units) if needed
+    if states.shape[0] > states.shape[1]:
+        states = np.squeeze(states)
+    
+
+    # Apply time window
+    start, end = time_window
+    states = states[:, start:end] if None not in time_window else states
+    
+    # Randomly sample units if needed
+    if n_units < states.shape[0]:
+        unit_indices = np.random.choice(
+            states.shape[0], 
+            size=min(n_units, states.shape[0]), 
+            replace=False
+        )
+        states = states[unit_indices, :]
+    
+    # Create figure
+    fig = go.Figure()
+    time_steps = np.arange(states.shape[1])
+    
+    if plot_type in ['line', 'both']:
+        for i, unit_states in enumerate(states):
+            fig.add_trace(go.Scatter(
+                x=time_steps,
+                y=unit_states,
+                name=f'Unit {i}',
+                mode='lines',
+                opacity=0.7,
+                line=dict(width=1),
+                hoverinfo='x+y+name'
+            ))
+    
+    if plot_type in ['heatmap', 'both']:
+        heatmap_fig = px.imshow(
+            states,
+            aspect='auto',
+            labels=dict(x="Time Step", y="Unit", color="Activation"),
+            color_continuous_scale='RdBu',
+            zmid=0
+        )
+        if plot_type == 'heatmap':
+            return heatmap_fig
+    
+    if show_distribution:
+        hist_fig = px.histogram(
+            states.T,
+            nbins=50,
+            labels={'value': 'Activation'},
+            title='Activation Distribution',
+            opacity=0.7,
+            marginal='box'
+        )
+    
+    # Layout configuration
+    fig.update_layout(
+        title=f'Reservoir Unit Dynamics ({states.shape[0]} units shown)',
+        xaxis_title='Time Step',
+        yaxis_title='Activation',
+        hovermode='x unified',
+        height=600,
+        template='plotly_white'
+    )
+    
+    if show_distribution:
+        from plotly.subplots import make_subplots
+        combined_fig = make_subplots(
+            rows=2, cols=1,
+            subplot_titles=('Temporal Dynamics', 'Activation Distribution'),
+            vertical_spacing=0.1
+        )
+        
+        for trace in fig.data:
+            combined_fig.add_trace(trace, row=1, col=1)
+        
+        for trace in hist_fig.data:
+            combined_fig.add_trace(trace, row=2, col=1)
+        
+        combined_fig.update_layout(height=900, showlegend=True)
+        return combined_fig
+    
+    fig.show()
+
+def plot_multidimensional(results, system_name, save_html=False):
+    """
+    Plot all dimensions of the system with interactive controls.
+    
+    Args:
+        results: List of result dictionaries containing:
+            - 'true_value': numpy array of true values
+            - 'predictions': torch tensor of predictions
+            - 'parameters': dictionary of parameters
+            - 'metrics': dictionary containing 'RMSE'
+        system_name: Name of the dynamical system
+        save_html: Whether to save as interactive HTML file
+    
+    Returns:
+        plotly.graph_objects.Figure: Interactive figure with dropdown
+    """
+    # Create figure
+    fig = go.Figure()
+    
+    # Create visibility matrix and button definitions
+    buttons = []
+    visible_matrix = []
+    param_strings = []  # To store formatted parameter strings
+    
+    for i, result in enumerate(results):
+        true_vals = result['true_value']
+        preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions']
+        params = result['parameters']
+        n_dims = true_vals.shape[1]
+        
+        # Format parameters for display
+        param_str = "<br>".join([f"{k}: {v}" for k, v in params.items()])
+        param_strings.append(param_str)
+        
+        # Create visibility array for this parameter set
+        visible = [False] * (len(results) * n_dims * 2)  # (true + pred) * dims * results
+        start_idx = i * n_dims * 2
+        
+        # Add traces for each dimension
+        for dim in range(n_dims):
+            # True values trace
+            fig.add_trace(go.Scatter(
+                x=np.arange(len(true_vals)),
+                y=true_vals[:, dim],
+                name=f'True Dim {dim+1}',
+                line=dict(color=px.colors.qualitative.Plotly[dim]),
+                visible=(i==0)  # Only show first set by default
+            ))
+            
+            # Predictions trace
+            fig.add_trace(go.Scatter(
+                x=np.arange(len(preds)),
+                y=preds[:, dim],
+                name=f'Pred Dim {dim+1}',
+                line=dict(color=px.colors.qualitative.Plotly[dim], dash='dash'),
+                visible=(i==0)
+            ))
+            
+            # Set visibility for this parameter set
+            visible[start_idx + dim*2] = True      # True values
+            visible[start_idx + dim*2 + 1] = True   # Predictions
+        
+        visible_matrix.append(visible)
+        
+        # Create button for this parameter set
+        buttons.append(dict(
+            label=f"Params {i+1} (RMSE: {result['metrics']['RMSE']:.3f})",
+            method="update",
+            args=[{"visible": visible_matrix[i]},
+                  {"title": {
+                      "text": f"{system_name} - Set {i+1} (RMSE: {result['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_str}</span>",
+                      "x": 0.5,
+                      "xanchor": "center"
+                  }}]
+        ))
+    
+    # Initial title with first parameter set
+    initial_title = {
+        "text": f"{system_name} - Set 1 (RMSE: {results[0]['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
+        "x": 0.5,
+        "xanchor": "center"
+    }
+    
+    # Update layout with dropdown menu
+    fig.update_layout(
+        title=initial_title,
+        updatemenus=[{
+            "buttons": buttons,
+            "direction": "down",
+            "showactive": True,
+            "x": 0.1,
+            "y": 1.2,  # Moved slightly higher to accommodate longer title
+            "xanchor": "left",
+            "yanchor": "top"
+        }],
+        template="plotly_white",
+        hovermode="x unified",
+        margin=dict(t=120)  # Increase top margin for longer title
+    )
+    
+    if save_html:
+        fig.write_html(f"{system_name}_predictions.html")
+    else: fig.show()
+    
