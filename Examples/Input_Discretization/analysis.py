@@ -16,7 +16,7 @@ import pickle
 
 
 # Configuration
-result_path = "Examples/Input_Discretization/results/Chaotic/Lorenz/"
+result_path = "Examples/Input_Discretization/results/Quasiperiodic/Torus/"
 
 # Initialize storage
 all_data = []
