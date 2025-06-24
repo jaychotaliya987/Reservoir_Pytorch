@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import Dict, List, Tuple, Union
 
-def test_memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> float:
+def memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> float:
     """
     Tests the reservoir's memory capacity by evaluating its ability to recall past inputs.
     
@@ -72,7 +72,7 @@ def test_memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> floa
 
     return np.mean(memory_capacities)
 
-def test_nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
+def nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
     """
     Evaluates the reservoir's ability to perform nonlinear transformations.
     
@@ -110,7 +110,7 @@ def test_nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
         
         for name, target in targets.items():
             Model.train_readout(u, target)
-            predictions = Model.predict(u)
+            predictions = Model.predict(u, steps= 1000)
             mse = torch.mean((predictions - target)**2).item()
             results.append({'Operation': name, 'MSE': mse, 'Trial': _+1})
     
@@ -134,56 +134,12 @@ def test_nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
 
     return results
 
-def visualize_reservoir_states(Model, n_states: int = 3) -> None:
-    """
-    Visualizes the temporal dynamics of reservoir units.
-    
-    Plots the activation trajectories of individual reservoir units over time,
-    helping to analyze the diversity and stability of internal representations.
-    
-    Args:
-        Model: Reservoir model that has recorded states in 'reservoir_states' attribute
-        n_states: Number of units to visualize. Default 3.
-    
-    Interpretation:
-        - Healthy reservoirs show diverse, non-saturated activation patterns
-        - Chaotic oscillations may indicate instability
-        - Flat lines suggest dead units
-        - Ideal: Mix of periodic and chaotic behaviors with amplitudes in [-1,1] range
-    """
-    if not hasattr(Model, 'reservoir_states'):
-        print("No reservoir states recorded")
-        return
-    
-    states_cpu = [state.cpu() for state in Model.reservoir_states]
-    time_steps = list(range(len(states_cpu)))
-    
-    fig = go.Figure()
-    
-    for i in range(min(n_states, Model.reservoir_dim)):
-        unit_states = [state[i].item() for state in states_cpu]
-        fig.add_trace(go.Scatter(
-            x=time_steps,
-            y=unit_states,
-            mode='lines',
-            name=f'Unit {i+1}',
-            hovertemplate='Time: %{x}<br>Activation: %{y:.4f}'
-        ))
-    
-    fig.update_layout(
-        title='Reservoir Unit Activations',
-        xaxis_title='Time Step',
-        yaxis_title='Activation',
-        hovermode='x unified',
-        height=500
-    )
-    fig.show()
 
 def test_input_sensitivity(Model, n_tests: int = 10, epsilon: float = 1e-3) -> float:
     """
     Quantifies how sensitive the reservoir is to small input perturbations.
-    
-    Measures the average normalized difference in reservoir states caused by
+    e
+    Measures the average normalized difference in rservoir states caused by
     small random perturbations to the input signal.
     
     Args:
@@ -324,7 +280,3 @@ def test_temporal_processing(Model, sequence_length: int = 20) -> float:
     mse = torch.mean((predictions - target)**2).item()
     print(f"Temporal Processing MSE: {mse:.6f}")
     return mse
-
-
-def best_hyperparam():
-    pass
