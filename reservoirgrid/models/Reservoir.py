@@ -181,12 +181,12 @@ class Reservoir(nn.Module):
             collected_states.append(self.reservoir_state) # Store state for this time step
 
         # Stack collected states: SeqLen x BatchSize x ReservoirDim
-        self.res_states = torch.stack(collected_states, dim=0)
+        self.reservoir_states = torch.stack(collected_states, dim=0)
 
         # --- Apply Readout ---
         # Reshape states if needed for linear layer: (SeqLen * BatchSize) x ReservoirDim
         # readout expects (N, *, H_in), where H_in is reservoir_dim
-        output = self.readout(self.res_states) # SeqLen x BatchSize x OutputDim
+        output = self.readout(self.reservoir_states) # SeqLen x BatchSize x OutputDim
 
         # Remove batch dimension if input was not batched
         if not batched_input:
@@ -221,7 +221,7 @@ class Reservoir(nn.Module):
             # Run forward pass to populate reservoir states, reset state beforehand
             self.forward(inputs, reset_state=False)
             # Get the collected states (SeqLen x BatchSize x ReservoirDim or SeqLen x ReservoirDim)
-            X = self.res_states
+            X = self.reservoir_states
 
         # --- Handle Optional Batch Dimension ---
         batched = X.ndim == 3
