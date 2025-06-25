@@ -1,4 +1,4 @@
-import time
+from time import time
 from contextlib import contextmanager
 from typing import Union, List, Tuple, Any, Optional
 
@@ -231,7 +231,7 @@ def parameter_sweep(inputs, parameter_dict,
             
             if state_downsample > 0:
                 with timer("State extraction"):
-                    result['reservoir_states'] = model.res_states.detach().cpu().numpy()[::state_downsample]
+                    result['reservoir_states'] = model.reservoir_states.detach().cpu().numpy()[::state_downsample]
             
             results.append(result)
             print(f"RMSE: {rmse:.4f} | Iter time: {time()-iter_start:.2f}s")
