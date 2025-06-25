@@ -217,7 +217,7 @@ def spectral_analysis(Model, input_signal: torch.Tensor) -> None:
         - Ideal: Balanced distribution across frequencies
     
     """
-    states = Model.res_states
+    states = Model.reservoir_states
     state_matrix = torch.stack([state.flatten() for state in states]).cpu().numpy()
     
     fig = go.Figure()
