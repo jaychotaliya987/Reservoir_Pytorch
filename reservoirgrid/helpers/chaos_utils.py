@@ -17,7 +17,7 @@ from reservoirgrid.helpers import utils
 
 def test_lyapunov(Model):
     # Get reservoir state norms
-    state_norms = [state.norm().item() for state in Model.res_states]
+    state_norms = [state.norm().item() for state in Model.reservoir_states]
     
     # Approximate Lyapunov Exponent (Δx growth rate)
     diffs = np.abs(np.diff(state_norms))
