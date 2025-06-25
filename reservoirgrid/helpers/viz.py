@@ -457,4 +457,189 @@ def plot_multidimensional(results, system_name, save_html=False):
     if save_html:
         fig.write_html(f"{system_name}_predictions.html")
     else: fig.show()
+
+
+def plot_multidimensional_3d(results, system_name, pp: int, save_html=False):
+    """
+    Plot 3D trajectories of the system with interactive controls.
     
+    Args:
+        results: List of result dictionaries containing:
+            - 'true_value': numpy array of true values (must be 3D)
+            - 'predictions': torch tensor of predictions (must be 3D)
+            - 'parameters': dictionary of parameters
+            - 'metrics': dictionary containing 'RMSE'
+        system_name: Name of the dynamical system
+        save_html: Whether to save as interactive HTML file
+    
+    Returns:
+        plotly.graph_objects.Figure: Interactive 3D figure with dropdown
+    """
+    # Create figure
+    fig = go.Figure()
+    
+    # Create visibility matrix and button definitions
+    buttons = []
+    visible_matrix = []
+    param_strings = []  # To store formatted parameter strings
+    
+    for i, result in enumerate(results):
+        true_vals = result['true_value']
+        preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions']
+        params = result['parameters']
+        
+        # Verify data is 3D
+        if true_vals.shape[1] != 3 or preds.shape[1] != 3:
+            raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])")
+        
+        # Format parameters for display
+        param_str = "<br>".join([f"{k}: {v}" for k, v in params.items()])
+        param_strings.append(param_str)
+        
+        # Create visibility array for this parameter set
+        visible = [False] * (len(results) * 2)  # (true + pred) * results
+        
+        # True values trace
+        fig.add_trace(go.Scatter3d(
+            x=true_vals[:, 0],
+            y=true_vals[:, 1],
+            z=true_vals[:, 2],
+            name=f'True Trajectory {i+1}',
+            marker=dict(size=2),
+            line=dict(color='grey', width=6),
+            visible=(i==0)  # Only show first set by default
+        ))
+        
+        # Predictions trace
+        fig.add_trace(go.Scatter3d(
+            x=preds[:, 0],
+            y=preds[:, 1],
+            z=preds[:, 2],
+            name=f'Predicted Trajectory {i+1}',
+            marker=dict(size=2),
+            line=dict(color='darkorange', width=7),
+            visible=(i==0)
+        ))
+        
+        # Set visibility for this parameter set
+        visible[i*2] = True    # True values
+        visible[i*2+1] = True  # Predictions
+        
+        visible_matrix.append(visible)
+        
+        # Create button for this parameter set
+        buttons.append(dict(
+            label=f"Params {i+1} (RMSE: {result['metrics']['RMSE']:.3f})",
+            method="update",
+            args=[{"visible": visible_matrix[i]},
+                  {"title": {
+                      "text": f"{system_name} - Set {i+1} (RMSE: {result['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_str}</span>",
+                      "x": 0.5,
+                      "xanchor": "center"
+                  },
+                  "scene": {  # Reset camera view when switching
+                      "camera": {"eye": {"x": 1.5, "y": 1.5, "z": 0.5}},
+                      # Apply axis settings here
+                      "xaxis": dict(
+                          showline=True,
+                          linecolor="black",
+                          linewidth=5,
+                          showgrid=False,
+                          zeroline=False,
+                          showticklabels=False,
+                          ticks="",
+                          title=""
+                      ),
+                      "yaxis": dict(
+                          showline=True,
+                          linecolor="black",
+                          linewidth=5,
+                          showgrid=False,
+                          zeroline=False,
+                          showticklabels=False,
+                          ticks="",
+                          title=""
+                      ),
+                      "zaxis": dict(
+                          showline=True,
+                          linecolor="black",
+                          linewidth=5,
+                          showgrid=False,
+                          zeroline=False,
+                          showticklabels=False,
+                          ticks="",
+                          title=""
+                      )
+                  }}]
+        ))
+    
+    # Initial title with first parameter set
+    initial_title = {
+        "text": f"{system_name} - Set 1 (RMSE: {results[0]['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
+        "x": 0.5,
+        "xanchor": "center"
+    }
+    
+    # Update layout with dropdown menu
+    fig.update_layout(
+        title=initial_title,
+        updatemenus=[{
+            "buttons": buttons,
+            "direction": "down",
+            "showactive": True,
+            "x": 0.1,
+            "y": 1.2,
+            "xanchor": "left",
+            "yanchor": "top"
+        }],
+        scene=dict(
+            xaxis=dict(
+                showline=True,
+                linecolor="black",
+                linewidth=5,
+                showgrid=False,
+                zeroline=False,
+                showticklabels=False,
+                ticks="",
+                title=""
+            ),
+            yaxis=dict(
+                showline=True,
+                linecolor="black",
+                linewidth=5,
+                showgrid=False,
+                zeroline=False,
+                showticklabels=False,
+                ticks="",
+                title=""
+            ),
+            zaxis=dict(
+                showline=True,
+                linecolor="black",
+                linewidth=5,
+                showgrid=False,
+                zeroline=False,
+                showticklabels=False,
+                ticks="",
+                title=""
+            ),
+            aspectmode='data',  # Preserve aspect ratio
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=0.5)  # Initial camera position
+            )
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        template="plotly_white",
+        margin=dict(t=120)
+    )
+
+    if save_html:
+        fig.write_html(f"{system_name}_{pp}_3D.html")
+    
+    fig.show()
