@@ -459,7 +459,7 @@ def plot_multidimensional(results, system_name, save_html=False):
     else: fig.show()
 
 
-def plot_multidimensional_3d(results, system_name, pp: int, save_html=False):
+def plot_multidimensional_3d(results, system_name, pp: int, save_html=False, path: str = "Examples/Input_Discretization/Plots/3DPlots/", show: bool = False):
     """
     Plot 3D trajectories of the system with interactive controls.
     
@@ -640,6 +640,7 @@ def plot_multidimensional_3d(results, system_name, pp: int, save_html=False):
     )
 
     if save_html:
-        fig.write_html(f"{system_name}_{pp}_3D.html")
-    
-    fig.show()
+        fig.write_html(f"{path}{system_name}/{pp}.html")
+        print(f"saved File at {path}{system_name}/{pp}.html")
+    if show:
+        fig.show()
