@@ -12,13 +12,10 @@ This class implements a reservoir computing model with the following features:
 - Device management (CPU/GPU)
 '''
 
-import math
-import numpy as np
-import matplotlib.pyplot as plt
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+
 from typing import Optional, Callable, Type, Union
 
 # Default device (can be overridden)
@@ -102,7 +99,7 @@ class Reservoir(nn.Module):
                     self.W = W_candidate # Use unscaled if radius is ~0
                 else:
                     self.W = W_candidate * (self.spectral_radius / (current_spectral_radius + 1e-9)) # Add eps
-            except torch.linalg.LinAlgError:
+            except torch.linalg.LinAlgError: # type: ignore
                  print("Warning: Eigenvalue computation failed. Using unscaled reservoir weights.")
                  self.W = W_candidate # Fallback
         else:
@@ -256,7 +253,7 @@ class Reservoir(nn.Module):
         # Use torch.linalg.solve for numerical stability and potential efficiency
         try:
             solution = torch.linalg.solve(XtX + alpha * I, Xty) # Shape: ReservoirDim x OutputDim
-        except torch.linalg.LinAlgError:
+        except torch.linalg.LinAlgError: # type: ignore
              print("Warning: Linear system solving failed (matrix might be singular). "
                    "Trying pseudo-inverse.")
              # Fallback using pseudo-inverse (more robust but potentially slower)
@@ -495,7 +492,7 @@ class Reservoir(nn.Module):
 
         # Define loss function and optimizer
         criterion = criterion_class()
-        optimizer = optimizer_class(self.parameters(), lr=lr) # self.parameters() includes W_in, W if requires_grad=True
+        optimizer = optimizer_class(self.parameters(), lr=lr) # type: ignore # self.parameters() includes W_in, W if requires_grad=True
 
         losses = torch.zeros(epochs, device=self.device) # Pre-allocate losses tensor
 
@@ -518,5 +515,5 @@ class Reservoir(nn.Module):
         return losses
 
 
-    def best_hyperparameters():
+    def best_hyperparameters(self):
         pass

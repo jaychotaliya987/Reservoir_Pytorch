@@ -61,7 +61,7 @@ for folder_name in os.listdir(path):
     df = pd.DataFrame(all_data)
     del all_data
     gc.collect()
-
+    
     # identifiers for each parameter combination
     df['param_combo'] = df['params'].apply(lambda x: tuple(sorted(x.items())))
 

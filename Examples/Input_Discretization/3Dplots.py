@@ -10,8 +10,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
-path = "Examples/Input_Discretization/results/Chaotic/"
-system_name = "Chua"
+path = "results/Chaotic/"
+system_name = "Lorenz"
 system_path = path + system_name
    
 for file in os.listdir(system_path):
