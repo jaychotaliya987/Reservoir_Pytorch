@@ -5,18 +5,12 @@ import tracemalloc
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 import torch
 import numpy as np
-from dysts.flows import *
 import pickle
 
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.model_selection import train_test_split
-
-from reservoirgrid.models import Reservoir
-from reservoirgrid.datasets import LorenzAttractor
-from reservoirgrid.helpers import utils, viz, reservoir_tests
+from reservoirgrid.helpers import utils
 
 
 #Parameter Dictionaries
