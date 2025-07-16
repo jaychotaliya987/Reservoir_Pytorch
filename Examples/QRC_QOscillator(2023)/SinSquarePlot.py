@@ -19,8 +19,8 @@ dataset = SineSquare(sample_len)
 data, label = dataset.get_all()
 data = data.flatten() # removes the batching and get the data into a single row vector for ploting
 
-
-if data.ndim != 1: raise "Input is not 1D"
+if data.ndim != 1:
+    raise ValueError(f"Input must be 1-dimensional, got {data.ndim}D tensor")
 
 fig = go.Figure()
 

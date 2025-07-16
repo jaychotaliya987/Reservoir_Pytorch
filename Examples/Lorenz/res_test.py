@@ -26,7 +26,7 @@ from reservoirgrid.helpers import reservoir_tests
 system_name = "/Chaotic/" + "Rossler"
 
 print(f"selected {system_name}")
-path = "../../reservoirgrid/datasets" + system_name + ".npy"
+path = "reservoirgrid/datasets" + system_name + ".npy"
 if not os.path.exists(path):
     print("System does not exist, Generate First")
     exit()
@@ -54,8 +54,7 @@ ResRose = Reservoir(
 
 ResRose.train_readout(train_inputs, train_targets, warmup=10)
 states = ResRose.reservoir_states.cpu()
-fig = viz.visualize_reservoir_states(model = ResRose, show_distribution=False)
-fig.show()
+viz.visualize_reservoir_states(model = ResRose, show_distribution=False)
 
 prediction = ResRose.predict(train_inputs, steps=len(test_targets)).cpu()
 rmse = utils.RMSE(test_targets, prediction)

@@ -17,4 +17,4 @@ from .LorenzAttractor import LorenzAttractor
 from .MackeyGlassDataset import MackeyGlassDataset
 from .SineSquare import SineSquare
 
-__all__ = ['LorentzAttractor', 'MackeyGlassDataset', 'SineSquare']
+__all__ = ['LorenzAttractor', 'MackeyGlassDataset', 'SineSquare']

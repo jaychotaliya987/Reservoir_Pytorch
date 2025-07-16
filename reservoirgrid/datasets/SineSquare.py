@@ -3,6 +3,8 @@ from torch.utils.data.dataset import Dataset
 import numpy as np
 from typing import Optional, Callable, Type, Union
 
+from ..helpers import utils
+
 class SineSquare(Dataset):
     """
     This is a dataset of randomly arranged discretized Sine and Square wave. It outputs a torch.tensor type dataset. 
@@ -14,7 +16,8 @@ class SineSquare(Dataset):
                  discretization: int = 8,
                  normalize: bool = False,
                  dtype: torch.dtype = torch.float32,
-                 seed: int = None):
+                 seed: int = 24
+                 ):
 
         self.discretization = 8
         self.sample_len = int(sample_len/self.discretization)
@@ -74,7 +77,7 @@ class SineSquare(Dataset):
         ).flatten()  # shape: [sample_len * discretization]
 
         if self.normalize:
-            self.data = self._normalize(self.data)
+            self.data = utils.normalize_data(self.data)
 
         return self.data, self.label
 

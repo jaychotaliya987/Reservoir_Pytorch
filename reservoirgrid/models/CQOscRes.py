@@ -47,7 +47,8 @@ class CQOscRes(nn.Module):
         # Hamiltonian components
         self.H_static = (self.omega[0] * self.a.dag() * self.a +
                         self.omega[1] * self.b.dag() * self.b +
-                        self.coupling * (self.a * self.b.dag() + self.a.dag() * self.b))
+                        self.coupling * (self.a * self.b.dag() + self.a.dag() * self.b)) # type: ignore
+                                                                                         #: Qutip does not have operator * in a way that is recognized by pylance
 
         # Quantum state storage (density matrices)
         self.state_dim = h_truncate**2  # For 2 oscillators
@@ -101,11 +102,12 @@ class CQOscRes(nn.Module):
 
     def measure_p_shots(self, rho: qt.Qobj, observable: qt.Qobj, p_shots: int = 100) -> float:
         """Simulate P-shot measurements of an observable"""
+        
         # Get eigenvalues and projectors
         eigvals, eigstates = observable.eigenstates()
 
         # Calculate probabilities
-        probs = np.array([(e.dag() * rho * e).tr().real for e in eigstates])
+        probs = np.array([(e.dag() * rho * e).tr().real for e in eigstates]) # type: ignore
         probs = np.maximum(probs, 0)  # Ensure non-negative
         probs /= probs.sum()  # Normalize
 
@@ -115,6 +117,7 @@ class CQOscRes(nn.Module):
 
     def train_readout(self, X: torch.Tensor, y: torch.Tensor, alpha: float = 1e-4):
         """Ridge regression for readout training"""
+
         # Convert to numpy for closed-form solution
         X_np = X.cpu().numpy()
         y_np = y.cpu().numpy()

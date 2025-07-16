@@ -26,14 +26,14 @@ else:
 
 def from_dysts(length = 1000, newgen = False):
     if not newgen:
-        Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz_fine.csv", delimiter=",", skip_header=1)[:,1:]
+        Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz.csv", delimiter=",", skip_header=1)[:,1:]
         Dataset = (Dataset - Dataset.min()) / (Dataset.max() - Dataset.min()) *2 -1
         inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
         train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
         train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
     else:
         Dataset = Lorenz().make_trajectory(length)
-        inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
+        inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32) # type: ignore
         train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)
         train_targets, test_targets = train_test_split(targets, shuffle=False, test_size=0.2, random_state=42)
     return train_inputs, train_targets, test_inputs, test_targets
@@ -72,7 +72,7 @@ time_steps = np.arange(len(test_targets))
 with torch.no_grad():
     predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
 
-error = utils.RMSE(test_targets[:],predictions[:])
+error = utils.RMSE(test_targets[:],predictions[:].cpu())
 print(f"RMSE: {error:.4f}")
 predictions = predictions.cpu().numpy()
 test_targets_np = test_targets.cpu().numpy()
@@ -137,7 +137,8 @@ for i, component in enumerate(['X', 'Y', 'Z'], 1):
     fig_components.add_vline(
         x=0, 
         line=dict(color=colors['divider'], width=1, dash='dot'),
-        row=i, col=1
+        row= i, #type: ignore - Plotly defaults are set to string but can also accept int or None, hance error ignored
+        col= 1 # type: ignore ____same as above____
     )
 
 # Add annotation for prediction start

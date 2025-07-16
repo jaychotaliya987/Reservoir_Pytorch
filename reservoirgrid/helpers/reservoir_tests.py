@@ -2,9 +2,9 @@ import torch
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
-def memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> float:
+def memory_capacity(Model, max_delay: int = 50, n_trials: int = 10):
     """
     Tests the reservoir's memory capacity by evaluating its ability to recall past inputs.
     
@@ -48,7 +48,7 @@ def memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> float:
             mc += corr**2
             trial_corrs.append(corr.item())
         
-        memory_capacities.append(mc.item() / max_delay)
+        memory_capacities.append(mc / max_delay)
         delay_correlations.append(trial_corrs)
 
     # Plot correlation vs delay
@@ -69,8 +69,10 @@ def memory_capacity(Model, max_delay: int = 50, n_trials: int = 10) -> float:
         hovermode='x'
     )
     fig.show()
+    
+    memory_capacities = np.mean(memory_capacities)
 
-    return np.mean(memory_capacities)
+    return memory_capacities
 
 def nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
     """
@@ -135,7 +137,7 @@ def nonlinearity(Model, n_trials: int = 5) -> List[Tuple[str, float]]:
     return results
 
 
-def test_input_sensitivity(Model, n_tests: int = 10, epsilon: float = 1e-3) -> float:
+def test_input_sensitivity(Model, n_tests: int = 10, epsilon: float = 1e-3) -> np.floating[Any]:
     """
     Quantifies how sensitive the reservoir is to small input perturbations.
     e
@@ -196,7 +198,7 @@ def test_input_sensitivity(Model, n_tests: int = 10, epsilon: float = 1e-3) -> f
     )
     fig.show()
 
-    return np.mean(sensitivities)
+    return np.mean(sensitivities) 
 
 def spectral_analysis(Model, input_signal: torch.Tensor) -> None:
     """

@@ -59,7 +59,7 @@ class MackeyGlassDataset(Dataset):
         for timestep in range(self.sample_len):
             for _ in range(self.delta_t):
                 xtau = history.popleft()
-                history.append(self.timeseries)
+                history.append(self.timeseries) #type: ignore
                 self.timeseries = history[-1] + (0.2 * xtau / (1.0 + xtau ** 10) - 0.1 * history[-1]) / self.delta_t
             # end for
             inp[timestep] = self.timeseries

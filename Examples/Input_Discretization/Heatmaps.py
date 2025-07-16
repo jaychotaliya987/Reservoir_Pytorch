@@ -37,11 +37,11 @@ for folder_name in os.listdir(path):
         for entry in data:
             params = entry['parameters']
             lyap_time = chaos_utils.comparative_lyapunov_time(
-                test_targets=entry['true_value'],
+                truth=entry['true_value'],
                 predictions=entry['predictions']
             )
             kldiv = chaos_utils.KLdivergence(entry['true_value'], entry['predictions'], bins = 100)
-            psd, cos_sim = chaos_utils.psd_errors(entry['true_value'], entry['predictions'], return_cos_sim=True)
+            psd, cos_sim = chaos_utils.psd_errors(entry['true_value'], entry['predictions'], return_cos_sim=True) # type: ignore
 
             all_data.append({
                 'ppp': ppp,

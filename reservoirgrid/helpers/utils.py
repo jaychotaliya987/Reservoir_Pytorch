@@ -55,7 +55,7 @@ def discretization_with_dt(data, length, discretization = None):
         print("discretizing manually")
         model.dt = discretization
         solution = model.make_trajectory(length, resampling = False, method= "RK45")
-    return solution
+    return solution # type: ignore
 
 
 def discretization(
@@ -242,7 +242,7 @@ def parameter_sweep(inputs, parameter_dict,
             
         finally:
             # Cleanup
-            del model
+            del model # type: ignore
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
     

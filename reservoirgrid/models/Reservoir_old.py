@@ -82,9 +82,9 @@ class Reservoir_old(nn.Module):
 
         # Initialize state
         self.register_buffer('reservoir_state', torch.zeros(reservoir_dim))
-        self.reservoir_states = []
+        self.reservoir_states = torch.tensor([])
 
-    def forward(self, u, reset_state=True):
+    def forward(self, u, reset_state=False):
         """
         Forward pass through the reservoir and readout layer.
         :param u: Input sequence (T x input_dim)
@@ -92,7 +92,7 @@ class Reservoir_old(nn.Module):
         """
         if reset_state:
             self.reservoir_state = torch.zeros_like(self.reservoir_state)
-            self.reservoir_states = []
+            self.reservoir_states = torch.tensor([])
         
         device = u.device
         self.W_in = self.W_in.to(device)
@@ -110,9 +110,10 @@ class Reservoir_old(nn.Module):
 
             self.reservoir_state = (1 - self.leak_rate) * self.reservoir_state + \
                                   self.leak_rate * new_state
-            self.reservoir_states.append(self.reservoir_state.clone())
-
-        return self.readout(torch.stack(self.reservoir_states))
+            
+            self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state), dim=0)
+    
+        return self.readout(self.reservoir_states)
 
     def train_readout(self, inputs, targets, warmup = None ,alpha=1e-6):
         """Train readout with ridge regression"""
@@ -124,7 +125,7 @@ class Reservoir_old(nn.Module):
 
         with torch.no_grad():
             self.forward(inputs, reset_state=True)
-            X = torch.stack(self.reservoir_states)
+            X = self.reservoir_states
             y = targets
 
         # Convert to numpy for ridge regression
@@ -140,7 +141,7 @@ class Reservoir_old(nn.Module):
             self.readout.weight.data = torch.tensor(solution.T, dtype=torch.float32, device=inputs.device)
             self.readout.bias.data.zero_()
 
-    def Train(self, dataset: torch.tensor, targets : torch.tensor, epochs: int, lr: float, 
+    def Train(self, dataset: torch.Tensor, targets : torch.Tensor, epochs: int, lr: float, 
               criterion=nn.MSELoss, optimizer=optim.Adam, print_every=10):
         """
         Trains the model with BP, for additional accuarcy.
@@ -210,14 +211,28 @@ class Reservoir_old(nn.Module):
 
         return torch.stack(predictions)
 
-    def update_reservoir(self, u):
+    def update_reservoir(self, u: torch.Tensor):
         """
-        Update the reservoir state using the input sequence.
-        :param u: Input sequence (T x input_dim)
+        Manually update the reservoir states by appending a new state.
+
+        Args:
+            u (torch.Tensor): New reservoir state to append (should match reservoir_dim)
         """
-        device = u.device
+        print("Warning: `update_reservoir` will update the reservoir states manually.")
+    
+        # Ensure input is on correct device and dtype
+        u = u.to(device=self.device, dtype=self.dtype)
+    
+        # Check dimensions
+        if u.shape != (self.reservoir_dim,):
+            raise ValueError(f"Input state should have shape ({self.reservoir_dim},), got {u.shape}")
+    
+        # Initialize reservoir_states if it doesn't exist
+        if not hasattr(self, 'reservoir_states'):
+            self.reservoir_states = u.unsqueeze(0)  # Create new tensor with batch dim
+
+        # Update current state
         self.reservoir_state = u
-        self.reservoir_states = torch.cat((self.reservoir_states, self.reservoir_state.unsqueeze(0)), dim=0)
 
 ####___________Echo State Property___________####
 
@@ -236,18 +251,18 @@ class Reservoir_old(nn.Module):
         Resets the reservoir state
         """
         self.reservoir_state = torch.zeros_like(self.reservoir_state)
-        self.reservoir_states = []
+        self.reservoir_states = torch.tensor([])
 
 ####___________Saving and Loading___________####
 
-    def Save_model(self, path = str):
+    def Save_model(self, path: str):
         """
         Saves the model
         :param path: Path to save the model
         """
         torch.save(self.state_dict(), path)
     
-    def Load_model(self, path = str):
+    def Load_model(self, path: str):
         """
         Loads the model
         :param path: Path to load the model

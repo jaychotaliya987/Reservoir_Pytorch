@@ -15,7 +15,7 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.datasets import MackeyGlassDataset
 from reservoirgrid.helpers import utils
 
-def test_lyapunov(Model):
+def lyapunov_expo(Model):
     # Get reservoir state norms
     state_norms = [state.norm().item() for state in Model.reservoir_states]
     
@@ -73,7 +73,7 @@ def lyapunov_time(series, threshold=0.1, min_samples=10):
     
     return len(series)
 
-def comparative_lyapunov_time(test_targets, predictions, threshold=0.1):
+def comparative_lyapunov_time(truth, predictions, threshold=0.1):
     """
     Computes Lyapunov time as the time when prediction diverges from ground truth.
 
@@ -85,19 +85,19 @@ def comparative_lyapunov_time(test_targets, predictions, threshold=0.1):
     Returns:
         Integer time index when prediction error exceeds threshold
     """
-    errors = np.linalg.norm(predictions - test_targets, axis=1)
+    errors = np.linalg.norm(predictions - truth, axis=1)
     diverged = np.where(errors > threshold)[0]
     return diverged[0].item() if len(diverged) > 0 else len(errors)
 
-def lyapunov_time_from_fit(true, pred, fit_range=0.5):
+def lyapunov_time_from_fit(truth, predictions, fit_range=0.5):
     """Calculate Lyapunov time via exponential fit of error growth"""
-    errors = np.linalg.norm(pred - true, axis=1)
+    errors = np.linalg.norm(predictions - truth, axis=1)
     t = np.arange(len(errors))
     
     # Only use first portion of data for fitting
     fit_len = int(len(errors) * fit_range)
     if fit_len < 2:
-        return len(pred)
+        return len(predictions)
     
     # Fit log errors to linear model
     with np.errstate(divide='ignore'):
@@ -108,7 +108,7 @@ def lyapunov_time_from_fit(true, pred, fit_range=0.5):
     return 1.0 / slope if slope > 0 else float('inf')
 
 
-def KLdivergence(true:np.ndarray, predicted: np.ndarray, bins: int):
+def KLdivergence(truth:np.ndarray, predictions: np.ndarray, bins: int = 100):
     """
     Calculates the Kullback–Leibler (KL) divergence of the true and predicted system
     
@@ -119,13 +119,13 @@ def KLdivergence(true:np.ndarray, predicted: np.ndarray, bins: int):
     Returns: 
         KLDivergence: a float    
     """
-    all_data = np.vstack([true, predicted])
+    all_data = np.vstack([truth, predictions])
 
     # Compute common bin edges
     ranges = [(np.min(all_data[:, i]), np.max(all_data[:, i])) for i in range(all_data.shape[1])]
 
-    H_true, _ = np.histogramdd(true, bins=bins, range=ranges, density=True)
-    H_pred, _ = np.histogramdd(predicted, bins=bins, range=ranges, density=True)
+    H_true, _ = np.histogramdd(truth, bins=bins, range=ranges, density=True)
+    H_pred, _ = np.histogramdd(predictions, bins=bins, range=ranges, density=True)
 
     # Flatten and normalize
     P = H_true.flatten() + 1e-10
@@ -152,7 +152,7 @@ def correlation_dimension(data, r_vals):
     return np.array(C)
 
 
-def comparive_correlation_dim(true: np.ndarray , prediction:np.ndarray,  r_vals:np.ndarray = np.logspace(-3,0,50)):
+def comparive_correlation_dim(truth: np.ndarray , predictions:np.ndarray,  r_vals:np.ndarray = np.logspace(-3,0,50)):
     """
     """
     pred_c = correlation_dimension(predictions, r_vals)
@@ -167,13 +167,13 @@ def comparive_correlation_dim(true: np.ndarray , prediction:np.ndarray,  r_vals:
     return corr
 
 
-def psd_errors(true: np.ndarray , prediction:np.ndarray, return_cos_sim:bool =False):
+def psd_errors(truth: np.ndarray , predictions:np.ndarray, return_cos_sim:bool =False):
     """
     returns Power spectrum errors and/or cosine simiilarity of the ground truth and predictions
     
     """
-    f, P_true = welch(true[:, 0], fs=1.0, nperseg=1024)
-    _, P_pred = welch(prediction[:, 0], fs=1.0, nperseg=1024)
+    f, P_true = welch(truth[:, 0], fs=1.0, nperseg=1024)
+    _, P_pred = welch(predictions[:, 0], fs=1.0, nperseg=1024)
 
     psd_error = np.linalg.norm(P_true - P_pred)
 
@@ -203,12 +203,8 @@ if __name__ == "__main__":
 
     Model.train_readout(train_inputs, train_targets, warmup=200)
 
-    test_lyapunov(Model)
+    lyapunov_expo(Model)
 
     predictions = Model.predict(train_inputs, steps = len(test_targets))
     print(lyapunov_time(predictions.cpu()))
-    print(lyapunov_time_from_fit(pred=predictions.cpu()))
-    plt.plot(np.log(errors + 1e-10))
-    plt.title("log(Error) vs Time")
-    plt.xlabel("t")
-    plt.ylabel("log(error)")
+    print(lyapunov_time_from_fit(truth = test_targets, predictions=predictions.cpu()))

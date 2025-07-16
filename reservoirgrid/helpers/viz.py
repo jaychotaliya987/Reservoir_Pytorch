@@ -1,13 +1,15 @@
 import numpy as np
 from matplotlib.colors import to_hex
 import matplotlib.cm as cm
+import torch
 from typing import Union
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+from plotly.express import histogram
 
-from reservoirgrid.models import Reservoir
+from ..models import Reservoir
 
 def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis', 
                  line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)'):
@@ -51,7 +53,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
             fig.add_trace(go.Scatter(
                 y=data,
                 mode='lines',
-                line=dict(width=line_width, color=to_hex(cm.viridis(0.5))),
+                line=dict(width=line_width, color='viridis'),
                 name=f'Dataset {i+1}',
                 hoverinfo='y'
             ), row=1, col=col)
@@ -181,7 +183,7 @@ def plot_components(trajectory, time=None, labels=None, title=None,
     )
     
     # Get colors from colorscale
-    colors = [to_hex(cm.viridis(i/n_components)) for i in range(n_components)]
+    colors = [to_hex(cm.get_cmap('viridis') (i/n_components)) for i in range(n_components)]
     
     for i in range(n_components):
         fig.add_trace(go.Scatter(
@@ -218,12 +220,7 @@ def plot_components(trajectory, time=None, labels=None, title=None,
         font=dict(family='Arial', size=12))
     
     # Only show x-axis label on bottom plot
-    fig.update_xaxes(title_text='Time', row=n_components, col=1)
-    
-    # Update subplot titles (component labels on left)
-    for i in range(n_components):
-        fig.layout.annotations[i].update(x=0.01, xanchor='left', font=dict(size=12))
-    
+    fig.update_xaxes(title_text='Time', col=1)   
     fig.show()
 
 
@@ -233,7 +230,7 @@ def visualize_reservoir_states(
     time_window: tuple = (None, None),
     plot_type: str = 'line',
     show_distribution: bool = True
-) -> go.Figure:
+):
     """
     Enhanced visualization of reservoir unit activations with multiple analysis tools.
     
@@ -309,14 +306,13 @@ def visualize_reservoir_states(
             states,
             aspect='auto',
             labels=dict(x="Time Step", y="Unit", color="Activation"),
-            color_continuous_scale='RdBu',
-            zmid=0
+            color_continuous_scale='RdBu'
         )
         if plot_type == 'heatmap':
             return heatmap_fig
-    
+        
     if show_distribution:
-        hist_fig = px.histogram(
+        hist_fig = histogram(
             states.T,
             nbins=50,
             labels={'value': 'Activation'},
@@ -346,7 +342,7 @@ def visualize_reservoir_states(
         for trace in fig.data:
             combined_fig.add_trace(trace, row=1, col=1)
         
-        for trace in hist_fig.data:
+        for trace in hist_fig.data: # type: ignore
             combined_fig.add_trace(trace, row=2, col=1)
         
         combined_fig.update_layout(height=900, showlegend=True)
