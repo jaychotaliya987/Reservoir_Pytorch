@@ -1,19 +1,15 @@
 import torch
-from torch import nn
-from torch import optim
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
-import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
 import os
-matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
+#matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
 
 # Ensure the correct path to MackeyGlass module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from reservoirgrid.datasets import MackeyGlassDataset
 from reservoirgrid.models import Reservoir
+from reservoirgrid.helpers import utils
 
 print("Imports Done!\n")
 
@@ -40,7 +36,7 @@ reservoir.train_readout(inputs[:-steps], targets[:-steps], alpha=1e-6)
 predictions = reservoir.predict(inputs, steps=steps)
 
 #test_data = torch.tensor(inputs[-steps:])
-print(f"RMSE: {reservoir.RMSE(predictions, inputs[-steps:])}")
+print(f"RMSE: {utils.RMSE(predictions, inputs[-steps:])}")
 predictions = predictions.squeeze(1).cpu().numpy()
 
 print(f"Predictions shape: {predictions.shape}")
@@ -48,9 +44,6 @@ print(f"Inputs shape: {inputs.shape}")
 print(f"Targets shape: {targets.shape}")
 
 ######-------------------Plots-------------------######
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
 
 # Set style and palette
 sns.set_style("white")
@@ -108,5 +101,4 @@ plt.legend(loc='upper right', fontsize=12)
 # Layout and save (optional)
 plt.tight_layout()
 # plt.savefig("forecast_plot.png", dpi=300, bbox_inches='tight')
-
 plt.show()

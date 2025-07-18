@@ -1,6 +1,7 @@
 .vscode/
 venv/
 .vs/
+.spyproject/
 Learning_Pytorch/__pycache__
 reservoirgrid/__pycache__
 reservoirgrid/datasets/__pycache__

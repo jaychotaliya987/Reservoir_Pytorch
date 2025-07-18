@@ -17,7 +17,6 @@ def timer(name):
     print(f"[{name}] elapsed: {time()-start:.2f}s")
 
 #------------------ reservoirgrid imports ---------------------#
-from reservoirgrid.models import Reservoir
 
 
 #-------------------- Suppress UserWarning --------------------------#

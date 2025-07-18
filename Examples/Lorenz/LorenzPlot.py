@@ -1,6 +1,5 @@
 import plotly.graph_objects as go
 import numpy as np
-import torch
 
 import os
 import sys
