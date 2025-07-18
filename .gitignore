@@ -1,5 +1,6 @@
 .vscode/
 venv/
+.idea/
 .vs/
 .spyproject/
 Learning_Pytorch/__pycache__

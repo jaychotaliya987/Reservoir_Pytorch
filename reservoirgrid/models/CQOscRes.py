@@ -1,9 +1,7 @@
 import torch 
-import matplotlib.pyplot as plt
 import numpy as np
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, TensorDataset
-from typing import Optional, Callable, Type, Union
+from typing import Optional, Union
 import qutip as qt
 
 # Default device (can be overridden)
@@ -65,12 +63,12 @@ class CQOscRes(nn.Module):
         time_points = self.time
 
         # Time-dependent Hamiltonian coefficient function
-        def H_drive_coeff(t, args):
+        def h_drive_coff(t, args):
             index = np.clip(np.searchsorted(time_points, t), 0, len(u_np)-1)
             return u_np[index]
 
         H_drive = [self.eps_0 * np.sqrt(2 * self.kappa[0]) * (self.a + self.a.dag()), 
-                 H_drive_coeff]
+                 h_drive_coff]
 
         # Collapse operators
         c_ops = [np.sqrt(self.kappa[0]) * self.a, 
@@ -140,7 +138,7 @@ class CQOscRes(nn.Module):
             eigvals = np.linalg.eigvalsh(rho)
             print(f"Time {self.time[i]:.2f}: Trace={trace:.4f}, Min Eigenvalue={eigvals[0]:.2e}")
 
-    def classify(self, tesesequance):
+    def classify(self, testsequance):
         """Make predictions using the trained readout layer"""
         classification_list = []
         testseqance = 123 
@@ -148,4 +146,5 @@ class CQOscRes(nn.Module):
     
     def RMSE(self, y_true, y_pred):
         """Calculate Root Mean Square Error"""
+
         return torch.sqrt(torch.mean((y_true - y_pred) ** 2))
