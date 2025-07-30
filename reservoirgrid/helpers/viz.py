@@ -14,13 +14,13 @@ from ..models import Reservoir
 def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis', 
                  line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)'):
     """
-    Create beautiful interactive horizontal subplots for datasets of varying dimensions using Plotly.
+    Create beautiful interactive plot with multiple trajectories overlaid.
     
     Args:
         datasets (list): List of numpy arrays (1D, 2D, or 3D)
-        titles (list): Optional list of titles for each subplot
+        titles (list): Optional list of titles for each dataset
         figsize (tuple): Figure size (width, height)
-        colorscale: Plotly colorscale name
+        colorscale: Plotly colorscale name (for 3D data)
         line_width: Width of plot lines
         marker_size: Size of start/end markers
         bgcolor: Background color
@@ -29,34 +29,50 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
     if titles is None:
         titles = [f'Dataset {i+1}' for i in range(n)]
     
-    # Check if we need 3D subplots and create appropriate specs
-    specs = []
-    for data in datasets:
-        if data.ndim > 1 and data.shape[1] == 3:
-            specs.append({'type': 'scatter3d'})
-        else:
-            specs.append({'type': 'xy'})
+    # Color sequence for different trajectories
+    colors = px.colors.qualitative.Plotly
     
-    # Create horizontal subplots (1 row, n columns)
-    fig = make_subplots(
-        rows=1, cols=n,
-        subplot_titles=titles,
-        specs=[specs],  # Note: specs is now a list of dicts for columns
-        horizontal_spacing=0.1 if n > 1 else 0.05
-    )
+    # Check if we need 3D plot
+    needs_3d = any(data.ndim > 1 and data.shape[1] == 3 for data in datasets)
+    
+    if needs_3d:
+        fig = go.Figure()
+    else:
+        fig = go.Figure()
     
     for i, data in enumerate(datasets):
-        col = i+1
+        color = colors[i % len(colors)]
         
         if data.ndim == 1:
             # 1D data
             fig.add_trace(go.Scatter(
                 y=data,
                 mode='lines',
-                line=dict(width=line_width, color='viridis'),
-                name=f'Dataset {i+1}',
+                line=dict(width=line_width, color=color),
+                name=titles[i],
                 hoverinfo='y'
-            ), row=1, col=col)
+            ))
+            
+            # Add start/end markers
+            fig.add_trace(go.Scatter(
+                x=[0],
+                y=[data[0]],
+                mode='markers',
+                marker=dict(size=marker_size, color='limegreen'),
+                name=f'Start {i+1}',
+                showlegend=False,
+                hoverinfo='y'
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=[len(data)-1],
+                y=[data[-1]],
+                mode='markers',
+                marker=dict(size=marker_size, color='crimson'),
+                name=f'End {i+1}',
+                showlegend=False,
+                hoverinfo='y'
+            ))
             
         elif data.shape[1] == 2:
             # 2D data
@@ -64,10 +80,10 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 x=data[:,0],
                 y=data[:,1],
                 mode='lines',
-                line=dict(width=line_width, color='green'),
-                name=f'Dataset {i+1}',
+                line=dict(width=line_width, color=color),
+                name=titles[i],
                 hoverinfo='x+y'
-            ), row=1, col=col)
+            ))
             
             # Add start/end markers
             fig.add_trace(go.Scatter(
@@ -75,32 +91,48 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 y=[data[0,1]],
                 mode='markers',
                 marker=dict(size=marker_size, color='limegreen'),
-                name='Start',
+                name=f'Start {i+1}',
                 showlegend=False,
-                hoverinfo='none'
-            ), row=1, col=col)
+                hoverinfo='x+y'
+            ))
             
             fig.add_trace(go.Scatter(
                 x=[data[-1,0]],
                 y=[data[-1,1]],
                 mode='markers',
                 marker=dict(size=marker_size, color='crimson'),
-                name='End',
+                name=f'End {i+1}',
                 showlegend=False,
-                hoverinfo='none'
-            ), row=1, col=col)
+                hoverinfo='x+y'
+            ))
             
         elif data.shape[1] == 3:
             # 3D data
+            if not needs_3d:
+                fig = go.Figure()  # Upgrade to 3D if we find 3D data
+                needs_3d = True
+                # Need to replot all previous traces in 3D
+                for j in range(i):
+                    prev_data = datasets[j]
+                    fig.add_trace(go.Scatter3d(
+                        x=prev_data[:,0] if prev_data.ndim > 1 else np.arange(len(prev_data)),
+                        y=prev_data[:,1] if prev_data.ndim > 1 and prev_data.shape[1] > 1 else prev_data,
+                        z=prev_data[:,2] if prev_data.ndim > 1 and prev_data.shape[1] > 2 else np.zeros(len(prev_data)),
+                        mode='lines',
+                        line=dict(width=line_width, color=colors[j % len(colors)]),
+                        name=titles[j],
+                        hoverinfo='x+y+z'
+                    ))
+            
             fig.add_trace(go.Scatter3d(
                 x=data[:,0],
                 y=data[:,1],
                 z=data[:,2],
                 mode='lines',
-                line=dict(width=line_width, color=data[:,2], colorscale=colorscale),
-                name=f'Dataset {i+1}',
+                line=dict(width=line_width, color=color),
+                name=titles[i],
                 hoverinfo='x+y+z'
-            ), row=1, col=col)
+            ))
             
             # Add start/end markers
             fig.add_trace(go.Scatter3d(
@@ -109,10 +141,10 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 z=[data[0,2]],
                 mode='markers',
                 marker=dict(size=marker_size, color='limegreen'),
-                name='Start',
+                name=f'Start {i+1}',
                 showlegend=False,
-                hoverinfo='none'
-            ), row=1, col=col)
+                hoverinfo='x+y+z'
+            ))
             
             fig.add_trace(go.Scatter3d(
                 x=[data[-1,0]],
@@ -120,30 +152,33 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 z=[data[-1,2]],
                 mode='markers',
                 marker=dict(size=marker_size, color='crimson'),
-                name='End',
+                name=f'End {i+1}',
                 showlegend=False,
-                hoverinfo='none'
-            ), row=1, col=col)
-            
-            # Update 3D scene settings
-            fig.update_scenes(
-                aspectmode='data',
-                xaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-                yaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-                zaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-                bgcolor=bgcolor,
-                row=1, col=col
-            )
+                hoverinfo='x+y+z'
+            ))
     
     # Update layout
     fig.update_layout(
         height=figsize[1],
-        width=max(figsize[0], 300 * n),  # Ensure enough width for all subplots
+        width=figsize[0],
         margin=dict(l=50, r=50, b=50, t=80),
         paper_bgcolor='white',
         plot_bgcolor=bgcolor,
-        showlegend=False,
-        font=dict(family='Arial', size=12))
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        font=dict(family='Arial', size=12),
+        title="Trajectory Comparison" if not titles else " vs. ".join(titles)
+    )
+    
+    if needs_3d:
+        # Update 3D scene settings
+        fig.update_scenes(
+            aspectmode='data',
+            xaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
+            yaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
+            zaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
+            bgcolor=bgcolor
+        )
     
     fig.show()
 
