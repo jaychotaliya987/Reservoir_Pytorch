@@ -21,34 +21,50 @@ def lyapunov_exponent(model_states: list) -> float:
     return float(lyap_exp)
 
 def lyapunov_time(
-    truth: Union [np.ndarray, torch.Tensor], 
-    predictions: Union [np.ndarray, torch.Tensor],
+    truth: Union[np.ndarray, torch.Tensor], 
+    predictions: Union[np.ndarray, torch.Tensor],
     threshold: float = 0.1, 
-    method: str = 'threshold'
+    method: str = 'threshold',
+    min_samples: int = 50,  # Minimum points for fitting
+    max_samples: int = 1000,  # Avoid overfitting long trajectories
 ) -> float:
-
+    
     if isinstance(truth, torch.Tensor):
         truth = truth.detach().cpu().numpy()
     if isinstance(predictions, torch.Tensor):
         predictions = predictions.detach().cpu().numpy()
-    
+
     if method == 'threshold':
         errors = np.abs(truth - predictions)
         normalized_errors = errors / (np.abs(predictions) + EPSILON)
         exceed_idx = np.argmax(normalized_errors > threshold)
-        return float(exceed_idx if exceed_idx > 0 else len(truth))  # Ensure float
-    
+        return float(exceed_idx if exceed_idx > 0 else len(truth))
+
     elif method == 'fit':
         errors = np.linalg.norm(truth - predictions, axis=-1)
-        t = np.arange(len(truth))
-        fit_len = max(MIN_SAMPLES, len(truth) // 2)
-        with np.errstate(divide='ignore'):
-            slope = np.polyfit(t[:fit_len], np.log(errors[:fit_len] + EPSILON), 1)[0]
-        return float(1.0 / slope if slope > EPSILON else np.inf)  # Ensure float
-    
+        
+        # Ensure errors are not too small or zero
+        valid_errors = errors[errors > 1e-10]  # Discard near-zero errors
+        if len(valid_errors) < min_samples:
+            return np.inf  # Not enough data
+        
+        t = np.arange(len(valid_errors))
+        fit_len = min(max_samples, len(valid_errors) // 2)  # Avoid overfitting
+        
+        # Fit log-error vs time
+        with np.errstate(divide='ignore', invalid='ignore'):
+            slope, intercept = np.polyfit(t[:fit_len], np.log(valid_errors[:fit_len]), 1)
+        
+        # Only accept positive slopes (exponential growth)
+        if slope <= 1e-10:  # Avoid division by zero or negative slopes
+            return np.inf
+        else:
+            return float(1.0 / slope)
+
     else:
         raise ValueError(f"Invalid method: '{method}'. Use 'threshold' or 'fit'.")
-    
+
+        
 def kl_divergence(
     truth: np.ndarray, 
     predictions: np.ndarray, 
