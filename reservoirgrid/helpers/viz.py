@@ -12,7 +12,7 @@ from plotly.express import histogram
 from ..models import Reservoir
 
 def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis', 
-                 line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)'):
+                 line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)', **kwargs):
     """
     Create beautiful interactive plot with multiple trajectories overlaid.
     
@@ -167,7 +167,8 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         font=dict(family='Arial', size=12),
-        title="Trajectory Comparison" if not titles else " vs. ".join(titles)
+        title="Trajectory Comparison" if not titles else " vs. ".join(titles),
+        **kwargs
     )
     
     if needs_3d:

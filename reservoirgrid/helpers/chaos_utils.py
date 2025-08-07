@@ -70,11 +70,10 @@ def kl_divergence(
     predictions: np.ndarray, 
     bins: int = 100
 ) -> float:
-    """Optimized KL divergence calculation."""
+    """KL divergence calculation."""
     all_data = np.vstack([truth, predictions])
     ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
     
-    # Use optimized histogramdd
     H_true, _ = np.histogramdd(truth, bins=bins, range=ranges, density=True)
     H_pred, _ = np.histogramdd(predictions, bins=bins, range=ranges, density=True)
     

@@ -27,7 +27,7 @@ parameter_dict_single = {
 }
 
 # System List
-system_list = ["MultiChua", "Rossler"]
+system_list = ["Lorenz", "Rossler"]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Loop Through System_list
