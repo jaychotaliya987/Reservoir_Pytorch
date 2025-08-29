@@ -25,9 +25,11 @@ def lyapunov_time(
     predictions: Union[np.ndarray, torch.Tensor],
     threshold: float = 0.1, 
     method: str = 'threshold',
-    min_samples: int = 50,  # Minimum points for fitting
-    max_samples: int = 1000,  # Avoid overfitting long trajectories
+    min_samples: int = 50,  # not used yet
+    max_samples: int = 1000,  # not used yet
+    normalize: bool = False
 ) -> float:
+    
     
     if isinstance(truth, torch.Tensor):
         truth = truth.detach().cpu().numpy()
@@ -36,9 +38,18 @@ def lyapunov_time(
 
     if method == 'threshold':
         errors = np.abs(truth - predictions)
-        normalized_errors = errors / (np.abs(predictions) + EPSILON)
-        exceed_idx = np.argmax(normalized_errors > threshold)
-        return float(exceed_idx if exceed_idx > 0 else len(truth))
+        if normalize:
+            errors = errors / (np.abs(predictions) + EPSILON)
+        
+        # check where threshold is crossed
+        exceed_mask = errors > threshold
+        if np.any(exceed_mask):
+            #exceed_idx = np.argmax(exceed_mask)
+            exceed_idx = np.nonzero(exceed_mask)[0][0]
+            return float(exceed_idx)
+        else:
+            # never exceeded
+            return float(len(truth))
 
     elif method == 'fit':
         errors = np.linalg.norm(truth - predictions, axis=-1)
@@ -110,8 +121,12 @@ def psd_metrics(
     nperseg: int = 1024
 ) -> Tuple[float, float]:
     """Compute PSD error and cosine similarity in one pass."""
-    f, P_true = welch(truth[:, 0], fs=1.0, nperseg=nperseg)
-    _, P_pred = welch(predictions[:, 0], fs=1.0, nperseg=nperseg)
+    
+    n_samples = min(len(truth), len(predictions))
+    nperseg = min(nperseg, n_samples)
+
+    f, P_true = welch(truth[:, 0], fs=1.0, nperseg = nperseg)
+    _, P_pred = welch(predictions[:, 0], fs=1.0, nperseg = nperseg)
     
     psd_error = np.linalg.norm(P_true - P_pred)
     cos_sim = cosine_similarity(P_true.reshape(1, -1), P_pred.reshape(1, -1))[0, 0]
