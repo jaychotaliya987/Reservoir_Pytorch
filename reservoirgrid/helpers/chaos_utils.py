@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+
+from scipy.stats import entropy
 from scipy.spatial.distance import pdist
 from scipy.signal import welch
 from sklearn.metrics.pairwise import cosine_similarity
@@ -75,23 +77,58 @@ def lyapunov_time(
     else:
         raise ValueError(f"Invalid method: '{method}'. Use 'threshold' or 'fit'.")
 
-        
+def _compute_histogram(X, bins, ranges):
+    """Compute flattened histogram with smoothing."""
+    H, _ = np.histogramdd(X, bins=bins, range=ranges, density=True)
+    return H.flatten() + EPSILON
+
 def kl_divergence(
     truth: np.ndarray, 
     predictions: np.ndarray, 
-    bins: int = 100
+    bins: int = 20
 ) -> float:
+    
     """KL divergence calculation."""
+
     all_data = np.vstack([truth, predictions])
     ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
     
-    H_true, _ = np.histogramdd(truth, bins=bins, range=ranges, density=True)
-    H_pred, _ = np.histogramdd(predictions, bins=bins, range=ranges, density=True)
+    P = _compute_histogram(truth, bins, ranges)
+    Q = _compute_histogram(predictions, bins, ranges)
+
+    return float(entropy(P, Q))
+
+
+def js_divergence(truth: np.ndarray, 
+                  predictions: np.ndarray, 
+                  bins: int = 20
+) -> float:
     
-    P = (H_true.flatten() + EPSILON) / (H_true.sum() + EPSILON * bins**truth.shape[1])
-    Q = (H_pred.flatten() + EPSILON) / (H_pred.sum() + EPSILON * bins**truth.shape[1])
+    """Jensen-Shannon divergence"""
+    all_data = np.vstack([truth, predictions])
+    ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
+
+    P = _compute_histogram(truth, bins, ranges)
+    Q = _compute_histogram(predictions, bins, ranges)
     
-    return np.sum(np.where(P > 0, P * np.log(P / Q), 0))
+
+    M = 0.5 * (P + Q)
+    return float(0.5 * entropy(P, M) + 0.5 * entropy(Q, M))
+
+
+def symmetric_kl(truth: np.ndarray, 
+                 predictions: np.ndarray, 
+                 bins: int = 20
+) -> float:
+    
+    """Symmetrized KL divergence"""
+    all_data = np.vstack([truth, predictions])
+    ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
+
+    P = _compute_histogram(truth, bins, ranges)
+    Q = _compute_histogram(predictions, bins, ranges)
+
+    return float(0.5 * (entropy(P, Q) + entropy(Q, P)))
 
 def correlation_dimension(
     data: np.ndarray, 

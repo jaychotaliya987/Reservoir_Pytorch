@@ -11,7 +11,7 @@ from plotly.express import histogram
 
 from ..models import Reservoir
 
-def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis', 
+def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), colorscale='Viridis', 
                  line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)', **kwargs):
     """
     Create beautiful interactive plot with multiple trajectories overlaid.
@@ -26,8 +26,8 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
         bgcolor: Background color
     """
     n = len(datasets)
-    if titles is None:
-        titles = [f'Dataset {i+1}' for i in range(n)]
+    if legend_names is None:
+        legend_names = [f'Dataset {i+1}' for i in range(n)]
     
     # Color sequence for different trajectories
     colors = px.colors.qualitative.Plotly
@@ -49,7 +49,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 y=data,
                 mode='lines',
                 line=dict(width=line_width, color=color),
-                name=titles[i],
+                name=legend_names[i],
                 hoverinfo='y'
             ))
             
@@ -81,7 +81,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 y=data[:,1],
                 mode='lines',
                 line=dict(width=line_width, color=color),
-                name=titles[i],
+                name=legend_names[i],
                 hoverinfo='x+y'
             ))
             
@@ -120,7 +120,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                         z=prev_data[:,2] if prev_data.ndim > 1 and prev_data.shape[1] > 2 else np.zeros(len(prev_data)),
                         mode='lines',
                         line=dict(width=line_width, color=colors[j % len(colors)]),
-                        name=titles[j],
+                        name=legend_names[j],
                         hoverinfo='x+y+z'
                     ))
             
@@ -130,7 +130,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
                 z=data[:,2],
                 mode='lines',
                 line=dict(width=line_width, color=color),
-                name=titles[i],
+                name=legend_names[i],
                 hoverinfo='x+y+z'
             ))
             
@@ -167,7 +167,7 @@ def compare_plot(datasets, titles=None, figsize=(1080, 600), colorscale='Viridis
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         font=dict(family='Arial', size=12),
-        title="Trajectory Comparison" if not titles else " vs. ".join(titles),
+        title = "Trajectory Comparison" if not title else title,
         **kwargs
     )
     
