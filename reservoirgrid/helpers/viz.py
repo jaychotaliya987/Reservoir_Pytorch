@@ -181,7 +181,7 @@ def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), c
             bgcolor=bgcolor
         )
     
-    fig.show()
+    return fig
 
 def plot_components(trajectory, time=None, labels=None, title=None, 
                    figsize=(1080,600), colorscale='Viridis', line_width=2.5,
