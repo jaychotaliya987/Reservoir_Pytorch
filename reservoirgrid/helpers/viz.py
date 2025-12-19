@@ -676,3 +676,227 @@ def plot_multidimensional_3d(results, system_name, pp: int, save_html=False, pat
         print(f"saved File at {path}{system_name}/{pp}.html")
     if show:
         fig.show()
+
+import pickle
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+def load_and_parse(path):
+    print(f"Loading {path}...")
+    with open(path, 'rb') as f:
+        results = pickle.load(f)
+    
+    data = []
+    for res in results:
+        # Flatten dictionary for DataFrame
+        row = {
+            'SR': res['parameters']['SpectralRadius'],
+            'LR': res['parameters']['LeakyRate'],
+            'IS': res['parameters']['InputScaling'],
+            'RMSE': res['metrics']['RMSE']
+        }
+        data.append(row)
+    
+    df = pd.DataFrame(data)
+    # Filter out exploded runs (NaN or Infinity) right at loading
+    df = df.replace([np.inf, -np.inf], np.nan).dropna()
+    return df
+
+# --- PLOT 1: 3D Parameter Space ---
+def plot_3d_scatter(df, ax=None):
+    """Plots a 3D scatter of SR, LR, and IS colored by RMSE."""
+    show_plot = False
+    if ax is None:
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        show_plot = True
+
+    # Color by RMSE (Dark = Good/Low RMSE, Yellow = Bad/High RMSE)
+    img = ax.scatter(df['SR'], df['LR'], df['IS'], c=df['RMSE'], 
+                     cmap='viridis_r', s=60, alpha=0.8, edgecolors='k', linewidth=0.3)
+    
+    ax.set_xlabel('Spectral Radius')
+    ax.set_ylabel('Leaky Rate')
+    ax.set_zlabel('Input Scaling')
+    ax.set_title('3D Parameter Landscape (Color = RMSE)')
+    
+    # Handle colorbar carefully (attach to figure if possible, else ax)
+    if ax.figure:
+        ax.figure.colorbar(img, ax=ax, label='RMSE (Darker is Better)', shrink=0.6)
+    
+    if show_plot:
+        plt.show()
+        
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+# --- PLOT 1: Parallel Coordinates ---
+def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=None, lower_is_better=True, save_path=None):
+    """
+    Plots parallel coordinates to show parameter flow, highlighting the best models.
+    
+    Args:
+        df (pd.DataFrame): The dataframe containing results.
+        metric (str): The column name to use for coloring and highlighting.
+        params (list): List of parameter columns to plot on the x-axis.
+        ax (plt.Axes, optional): Matplotlib axes to plot on.
+        lower_is_better (bool): If True, treats lower values as 'best'.
+        save_path (str, optional): File path to save the high-res image (e.g., 'parallel.png').
+    """
+    show_plot = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        show_plot = True
+
+    # 1. Normalize data
+    df_plot = df[params].copy()
+    for col in params:
+        if df_plot[col].max() == df_plot[col].min():
+            df_plot[col] = 0.5 
+        else:
+            df_plot[col] = (df_plot[col] - df_plot[col].min()) / (df_plot[col].max() - df_plot[col].min())
+
+    # 2. Attach metric
+    df_plot['raw_metric'] = df[metric]
+    
+    # 3. Sort Data
+    if lower_is_better:
+        df_plot = df_plot.sort_values('raw_metric', ascending=False)
+        threshold = df[metric].quantile(0.1)
+        cmap = plt.cm.viridis_r 
+    else:
+        df_plot = df_plot.sort_values('raw_metric', ascending=True)
+        threshold = df[metric].quantile(0.9)
+        cmap = plt.cm.viridis
+
+    m_min, m_max = df[metric].min(), df[metric].max()
+
+    # 4. Plotting Loop
+    for i, row in df_plot.iterrows():
+        val = row['raw_metric']
+        is_best = (val <= threshold) if lower_is_better else (val >= threshold)
+        alpha = 0.9 if is_best else 0.05 
+        
+        # Color mapping
+        norm_c = (val - m_min) / (m_max - m_min) if m_max > m_min else 0.5
+        color = cmap(norm_c)
+        
+        ax.plot(params, row[params], color=color, alpha=alpha)
+
+    # 5. Styling
+    direction = "Lowest" if lower_is_better else "Highest"
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=m_min, vmax=m_max))
+    cbar = plt.colorbar(sm, ax=ax, pad=0.01)
+
+    if lower_is_better:
+        cbar.ax.invert_yaxis()
+        cbar.set_label(f'{metric} (Low = Best)')
+    else:
+        cbar.set_label(f'{metric} (High = Best)')
+        
+    ax.set_title(f'Parallel Coordinates: {metric} ({direction} 10% Highlighted)')
+    ax.set_ylabel('Normalized Parameter Value (0-1)')
+    ax.set_xlabel('Hyperparameters')
+    ax.grid(True, alpha=0.3)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # --- SAVE LOGIC ---
+    if save_path:
+        # We access the figure from the axis to ensure we save what was drawn
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Parallel Coordinates plot saved to: {save_path}")
+
+    if show_plot:
+        plt.show()
+
+
+# --- PLOT 2: Correlation Matrix ---
+def plot_correlation_matrix(df, ax=None, save_path=None):
+    """Plots heatmap of pairwise correlations."""
+    show_plot = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        show_plot = True
+
+    corr = df.corr()
+    sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax, vmin=-1, vmax=1)
+    ax.set_title('Correlation Matrix')
+    
+    # --- SAVE LOGIC ---
+    if save_path:
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Correlation Matrix saved to: {save_path}")
+
+    if show_plot:
+        plt.show()
+
+
+# --- PLOT 3: Best vs Worst Distributions ---
+def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=None, lower_is_better=True, save_path=None):
+    """
+    Plots histograms of parameters for the top 20% performing models.
+    """
+    show_plot = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        show_plot = True
+
+    # Filter for Top 20%
+    if lower_is_better:
+        threshold = df[metric].quantile(0.2)
+        top_models = df[df[metric] <= threshold]
+        direction_label = "Lowest"
+    else:
+        threshold = df[metric].quantile(0.8)
+        top_models = df[df[metric] >= threshold]
+        direction_label = "Highest"
+
+    # Plot histograms
+    for param in params:
+        if param in df.columns:
+            ax.hist(top_models[param], alpha=0.5, label=f'Best {param}', bins=10, density=True)
+        else:
+            print(f"Warning: Parameter '{param}' not found in DataFrame.")
+
+    ax.legend()
+    ax.set_title(f'Parameter Distribution for {direction_label} 20% {metric}')
+    ax.set_ylabel('Density')
+    ax.set_xlabel('Parameter Value')
+    
+    # --- SAVE LOGIC ---
+    if save_path:
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Distribution plot saved to: {save_path}")
+
+    if show_plot:
+        plt.show()
+
+# --- MAIN DRIVER ---
+def plot_all_analysis(df):
+    """Creates a dashboard combining all 4 plots."""
+    print(f"Plotting {len(df)} valid runs...")
+    print("\n--- TOP 5 CONFIGURATIONS ---")
+    print(df.sort_values('RMSE').head(5))
+
+    fig = plt.figure(figsize=(18, 10))
+    
+    # Grid: 2 rows, 2 columns
+    ax1 = fig.add_subplot(2, 2, 1, projection='3d')
+    plot_3d_scatter(df, ax=ax1)
+    
+    ax2 = fig.add_subplot(2, 2, 2)
+    plot_parallel_coordinates(df, ax=ax2)
+    
+    ax3 = fig.add_subplot(2, 2, 3)
+    plot_correlation_matrix(df, ax=ax3)
+    
+    ax4 = fig.add_subplot(2, 2, 4)
+    plot_parameter_distributions(df, ax=ax4)
+    
+    plt.tight_layout()
+    plt.show()
