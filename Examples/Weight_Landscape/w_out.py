@@ -50,11 +50,9 @@ for data in data_10:
     all_params.append(params)
 
 
-
 jsidx = np.argpartition(all_jsdiv, 10)[:10]
 klidx = np.argpartition(all_kldiv, 10)[:10]
 sklidx = np.argpartition(all_skl, 10)[:10]
-
 
 
 from plotly.subplots import make_subplots
@@ -253,11 +251,11 @@ def plot_analysis(df):
     
     # Color by RMSE (reversed so dark/purple is bad, bright/yellow is good usually, 
     # but let's use 'viridis_r' where Dark = Good (Low RMSE), Yellow = Bad)
-    img = ax1.scatter(df['SR'], df['LR'], df['IS'], c=df['RMSE'], cmap='viridis_r', s=60, alpha=0.8, edgecolors='k', linewidth=0.3)
+    img = ax1.scatter(df['SR'], df['LR'], df['IS'], c=df['RMSE'], cmap='viridis_r', alpha=0.8, edgecolors='k', linewidth=0.3)
     
     ax1.set_xlabel('Spectral Radius')
     ax1.set_ylabel('Leaky Rate')
-    ax1.set_zlabel('Input Scaling')
+    #ax1.set_zlabel('Input Scaling') #Type:ignore
     ax1.set_title('3D Parameter Landscape (Color = RMSE)')
     fig.colorbar(img, ax=ax1, label='RMSE (Darker is Better)')
 
@@ -275,7 +273,7 @@ def plot_analysis(df):
     
     for i, row in df_norm.iterrows():
         # Color based on performance
-        color = plt.cm.viridis_r((row['RMSE_RAW'] - df['RMSE'].min()) / (df['RMSE'].max() - df['RMSE'].min()))
+        color = plt.cm.viridis_r((row['RMSE_RAW'] - df['RMSE'].min()) / (df['RMSE'].max() - df['RMSE'].min())) #type:ignore
         alpha = 0.8 if row['RMSE_RAW'] < df['RMSE'].quantile(0.1) else 0.1 # Highlight top 10%
         
         ax2.plot(['SR', 'LR', 'IS'], [row['SR'], row['LR'], row['IS']], color=color, alpha=alpha)

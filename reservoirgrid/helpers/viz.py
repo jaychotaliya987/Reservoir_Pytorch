@@ -715,11 +715,10 @@ def plot_3d_scatter(df, ax=None):
 
     # Color by RMSE (Dark = Good/Low RMSE, Yellow = Bad/High RMSE)
     img = ax.scatter(df['SR'], df['LR'], df['IS'], c=df['RMSE'], 
-                     cmap='viridis_r', s=60, alpha=0.8, edgecolors='k', linewidth=0.3)
+                     cmap='viridis_r', alpha=0.8, edgecolors='k', linewidth=0.3)
     
     ax.set_xlabel('Spectral Radius')
     ax.set_ylabel('Leaky Rate')
-    ax.set_zlabel('Input Scaling')
     ax.set_title('3D Parameter Landscape (Color = RMSE)')
     
     # Handle colorbar carefully (attach to figure if possible, else ax)
@@ -767,11 +766,11 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
     if lower_is_better:
         df_plot = df_plot.sort_values('raw_metric', ascending=False)
         threshold = df[metric].quantile(0.1)
-        cmap = plt.cm.viridis_r 
+        cmap = plt.cm.viridis_r  #type: ignore
     else:
         df_plot = df_plot.sort_values('raw_metric', ascending=True)
         threshold = df[metric].quantile(0.9)
-        cmap = plt.cm.viridis
+        cmap = plt.cm.viridis #type: ignore
 
     m_min, m_max = df[metric].min(), df[metric].max()
 
@@ -789,7 +788,7 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
 
     # 5. Styling
     direction = "Lowest" if lower_is_better else "Highest"
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=m_min, vmax=m_max))
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=m_min, vmax=m_max)) #type: ignore
     cbar = plt.colorbar(sm, ax=ax, pad=0.01)
 
     if lower_is_better:
@@ -808,7 +807,7 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
     # --- SAVE LOGIC ---
     if save_path:
         # We access the figure from the axis to ensure we save what was drawn
-        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Parallel Coordinates plot saved to: {save_path}")
 
     if show_plot:
@@ -829,7 +828,7 @@ def plot_correlation_matrix(df, ax=None, save_path=None):
     
     # --- SAVE LOGIC ---
     if save_path:
-        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Correlation Matrix saved to: {save_path}")
 
     if show_plot:
@@ -870,7 +869,7 @@ def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], a
     
     # --- SAVE LOGIC ---
     if save_path:
-        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight')
+        ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Distribution plot saved to: {save_path}")
 
     if show_plot:

@@ -372,7 +372,7 @@ def parameter_sweep_comp(inputs, parameter_dict,
         finally:
             # Cleanup
             if 'model' in locals():
-                del model 
+                del model #type: ignore
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
     

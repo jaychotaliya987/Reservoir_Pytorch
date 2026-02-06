@@ -28,7 +28,7 @@ for folder_name in os.listdir(path):
     file_list = [f for f in os.listdir(result_path) if f.endswith('.pkl')]
 
     # Loop over files with tqdm progress bar
-    for file_name in tqdm(file_list, desc="📂 Files", unit="file"):
+    for file_name in tqdm(file_list, desc=" Files", unit="file"):
         ppp = float(file_name[:-4])  # Extract points-per-period
         file_path = os.path.join(result_path, file_name)
 
@@ -60,7 +60,7 @@ for folder_name in os.listdir(path):
         gc.collect()
 
     # DataFrame for easier manipulation
-    print("📊 Converting results to DataFrame...")
+    print("Converting results to DataFrame...")
     df = pd.DataFrame(all_data)
     del all_data
     gc.collect()
@@ -76,7 +76,7 @@ for folder_name in os.listdir(path):
     metrics = ['LyapunovTime', 'KLDivergence', 'PSD Errors', "RMSE", 'Cos_Sim']
 
     for metric in metrics:
-        print(f"\n🎨 Creating heatmap for {folder_name}'s {metric}...")
+        print(f"\n Creating heatmap for {folder_name}'s {metric}...")
         # heatmap matrix for current metric:
         heatmap = np.full((len(unique_ppp), len(unique_param_combos)), np.nan)
 
@@ -114,6 +114,6 @@ for folder_name in os.listdir(path):
         output_file = f"{save_path}{folder_name}/{metric}.png"
         plt.savefig(output_file, dpi=600)
         plt.close()
-        print(f"💾 Saved heatmap: {output_file}")
+        print(f"Saved heatmap: {output_file}")
 
-print("\n✅ All processing complete!")
+print("\nAll processing complete!")
