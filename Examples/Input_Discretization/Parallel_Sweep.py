@@ -15,7 +15,7 @@ from scipy.stats import qmc
 
 # --- CONFIGURATION ---
 # Set this to the specific PP value you want to run (e.g., 75, 100, etc.)
-TARGET_PP = 75 
+TARGET_PP = 75
 # ---------------------
 
 # System List
@@ -24,7 +24,11 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 1. Setup
 d = 3
+<<<<<<< HEAD:Examples/Input_Discretization/Parallel_Sweep.py
 n = 1500
+=======
+n = 1000
+>>>>>>> a9bfdabf9166d98079570691c723ce5ffc439d3d:Examples/Weight_Landscape/Sweep.py
 
 # 2. Generate raw samples (0.0 to 1.0)
 sampler = qmc.LatinHypercube(d=d)
@@ -32,9 +36,15 @@ sample_01 = sampler.random(n=n)
 
 # 3. Define Manual Bounds [SpectralRadius, LeakyRate, InputScaling]
 # Lower limits for your 3 variables
+<<<<<<< HEAD:Examples/Input_Discretization/Parallel_Sweep.py
 l_bounds = [0.5, 0.1, 0.2]  
 # Upper limits for your 3 variables
 u_bounds = [1.5, 0.95, 0.9] 
+=======
+l_bounds = [0.5, 0.0, 0.2]  
+# Upper limits for your 3 variables
+u_bounds = [1.5, 1.5, 1.5] 
+>>>>>>> a9bfdabf9166d98079570691c723ce5ffc439d3d:Examples/Weight_Landscape/Sweep.py
 
 # 4. Scale the samples to these bounds
 scaled_sample = np.round(qmc.scale(sample_01, l_bounds, u_bounds), 2)
