@@ -12,19 +12,27 @@ from plotly.express import histogram
 from ..models import Reservoir
 
 def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), colorscale='Viridis', 
-                 line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)', **kwargs):
+                 line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)', **kwargs) -> go.Figure:
     """
-    Create beautiful interactive plot with multiple trajectories overlaid.
+    Create plot of datasets with trajectories overlaid. Useful to compare true vs predicted.
+    can dynamically handle 2D and 3D data.
     
     Args:
-        datasets (list): List of numpy arrays (1D, 2D, or 3D)
+        datasets (list): List of numpy arrays. If multiple, combine them in a array. ex. [dataset1, dataset2, ...]
         titles (list): Optional list of titles for each dataset
         figsize (tuple): Figure size (width, height)
         colorscale: Plotly colorscale name (for 3D data)
         line_width: Width of plot lines
         marker_size: Size of start/end markers
         bgcolor: Background color
+
+    Returns: 
+        plotly.graph_objects.Figure
+
+    Note: Uses Abstractions
+
     """
+
     n = len(datasets)
     if legend_names is None:
         legend_names = [f'Dataset {i+1}' for i in range(n)]
@@ -32,160 +40,42 @@ def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), c
     # Color sequence for different trajectories
     colors = px.colors.qualitative.Plotly
     
-    # Check if we need 3D plot
-    needs_3d = any(data.ndim > 1 and data.shape[1] == 3 for data in datasets)
+    dim = datasets[0].shape[1] if datasets[0].ndim > 1 else 1
     
-    if needs_3d:
-        fig = go.Figure()
-    else:
-        fig = go.Figure()
-    
+    fig = go.Figure()
+
+    line_trace, marker_trace = _get_trace_builders(dim)
+
     for i, data in enumerate(datasets):
         color = colors[i % len(colors)]
-        
-        if data.ndim == 1:
-            # 1D data
-            fig.add_trace(go.Scatter(
-                y=data,
-                mode='lines',
-                line=dict(width=line_width, color=color),
-                name=legend_names[i],
-                hoverinfo='y'
-            ))
-            
-            # Add start/end markers
-            fig.add_trace(go.Scatter(
-                x=[0],
-                y=[data[0]],
-                mode='markers',
-                marker=dict(size=marker_size, color='limegreen'),
-                name=f'Start {i+1}',
-                showlegend=False,
-                hoverinfo='y'
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=[len(data)-1],
-                y=[data[-1]],
-                mode='markers',
-                marker=dict(size=marker_size, color='crimson'),
-                name=f'End {i+1}',
-                showlegend=False,
-                hoverinfo='y'
-            ))
-            
-        elif data.shape[1] == 2:
-            # 2D data
-            fig.add_trace(go.Scatter(
-                x=data[:,0],
-                y=data[:,1],
-                mode='lines',
-                line=dict(width=line_width, color=color),
-                name=legend_names[i],
-                hoverinfo='x+y'
-            ))
-            
-            # Add start/end markers
-            fig.add_trace(go.Scatter(
-                x=[data[0,0]],
-                y=[data[0,1]],
-                mode='markers',
-                marker=dict(size=marker_size, color='limegreen'),
-                name=f'Start {i+1}',
-                showlegend=False,
-                hoverinfo='x+y'
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=[data[-1,0]],
-                y=[data[-1,1]],
-                mode='markers',
-                marker=dict(size=marker_size, color='crimson'),
-                name=f'End {i+1}',
-                showlegend=False,
-                hoverinfo='x+y'
-            ))
-            
-        elif data.shape[1] == 3:
-            # 3D data
-            if not needs_3d:
-                fig = go.Figure()  # Upgrade to 3D if we find 3D data
-                needs_3d = True
-                # Need to replot all previous traces in 3D
-                for j in range(i):
-                    prev_data = datasets[j]
-                    fig.add_trace(go.Scatter3d(
-                        x=prev_data[:,0] if prev_data.ndim > 1 else np.arange(len(prev_data)),
-                        y=prev_data[:,1] if prev_data.ndim > 1 and prev_data.shape[1] > 1 else prev_data,
-                        z=prev_data[:,2] if prev_data.ndim > 1 and prev_data.shape[1] > 2 else np.zeros(len(prev_data)),
-                        mode='lines',
-                        line=dict(width=line_width, color=colors[j % len(colors)]),
-                        name=legend_names[j],
-                        hoverinfo='x+y+z'
-                    ))
-            
-            fig.add_trace(go.Scatter3d(
-                x=data[:,0],
-                y=data[:,1],
-                z=data[:,2],
-                mode='lines',
-                line=dict(width=line_width, color=color),
-                name=legend_names[i],
-                hoverinfo='x+y+z'
-            ))
-            
-            # Add start/end markers
-            fig.add_trace(go.Scatter3d(
-                x=[data[0,0]],
-                y=[data[0,1]],
-                z=[data[0,2]],
-                mode='markers',
-                marker=dict(size=marker_size, color='limegreen'),
-                name=f'Start {i+1}',
-                showlegend=False,
-                hoverinfo='x+y+z'
-            ))
-            
-            fig.add_trace(go.Scatter3d(
-                x=[data[-1,0]],
-                y=[data[-1,1]],
-                z=[data[-1,2]],
-                mode='markers',
-                marker=dict(size=marker_size, color='crimson'),
-                name=f'End {i+1}',
-                showlegend=False,
-                hoverinfo='x+y+z'
-            ))
-    
-    # Update layout
-    fig.update_layout(
-        height=figsize[1],
-        width=figsize[0],
-        margin=dict(l=50, r=50, b=50, t=80),
-        paper_bgcolor='white',
-        plot_bgcolor=bgcolor,
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        font=dict(family='Arial', size=12),
-        title = "Trajectory Comparison" if not title else title,
-        **kwargs
-    )
-    
-    if needs_3d:
-        # Update 3D scene settings
-        fig.update_scenes(
-            aspectmode='data',
-            xaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-            yaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-            zaxis=dict(gridcolor='rgb(200, 200, 200)', showbackground=True),
-            bgcolor=bgcolor
-        )
-    
+
+        if dim == 1:
+            x = np.arange(len(data))
+            y = data
+
+            fig.add_trace(trace = line_trace(x, y, name = legend_names[i], color = color, lw = line_width))     # type: ignore
+            fig.add_trace(trace = marker_trace(x[0], y[0], name = "", color = "limegreen", size = marker_size)) # type: ignore
+            fig.add_trace(trace = marker_trace(x[-1], y[-1], name = "", color = "crimson", size = marker_size)) # type: ignore
+
+        elif dim == 2:
+            x, y = data[:,0], data[:,1]
+
+            fig.add_trace(trace = line_trace(x, y, name = legend_names[i], color = color, lw = line_width))      # type: ignore
+            fig.add_trace(trace = marker_trace(x[0], y[0], name = "", color = "limegreen", size = marker_size)) # type: ignore
+            fig.add_trace(trace = marker_trace(x[-1], y[-1], name = "", color = "crimson", size = marker_size)) # type: ignore
+
+        else:
+            x, y, z = data[:,0], data[:,1], data[:,2]
+
+            fig.add_trace(trace = line_trace(x, y, z, legend_names[i], color, line_width))          # type: ignore
+            fig.add_trace(trace = marker_trace(x[0], y[0], z[0], "", "limegreen",   marker_size))   # type: ignore
+            fig.add_trace(trace = marker_trace(x[-1], y[-1], z[-1], "", "crimson",  marker_size))   # type: ignore
+
     return fig
 
 def plot_components(trajectory, time=None, labels=None, title=None, 
                    figsize=(1080,600), colorscale='Viridis', line_width=2.5,
-                   bgcolor='rgb(240, 240, 240)', title_fontsize=20):
+                   bgcolor='rgb(240, 240, 240)', title_fontsize=20) -> go.Figure:
     """
     Create beautiful interactive component plot using Plotly.
     
@@ -257,7 +147,7 @@ def plot_components(trajectory, time=None, labels=None, title=None,
     
     # Only show x-axis label on bottom plot
     fig.update_xaxes(title_text='Time', col=1)   
-    fig.show()
+    return fig
 
 
 def visualize_reservoir_states(
@@ -386,114 +276,10 @@ def visualize_reservoir_states(
     
     fig.show()
 
-def plot_multidimensional(results, system_name, save_html=False):
-    """
-    Plot all dimensions of the system with interactive controls.
-    
-    Args:
-        results: List of result dictionaries containing:
-            - 'true_value': numpy array of true values
-            - 'predictions': torch tensor of predictions
-            - 'parameters': dictionary of parameters
-            - 'metrics': dictionary containing 'RMSE'
-        system_name: Name of the dynamical system
-        save_html: Whether to save as interactive HTML file
-    
-    Returns:
-        plotly.graph_objects.Figure: Interactive figure with dropdown
-    """
-    # Create figure
-    fig = go.Figure()
-    
-    # Create visibility matrix and button definitions
-    buttons = []
-    visible_matrix = []
-    param_strings = []  # To store formatted parameter strings
-    
-    for i, result in enumerate(results):
-        true_vals = result['true_value']
-        preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions']
-        params = result['parameters']
-        n_dims = true_vals.shape[1]
-        
-        # Format parameters for display
-        param_str = "<br>".join([f"{k}: {v}" for k, v in params.items()])
-        param_strings.append(param_str)
-        
-        # Create visibility array for this parameter set
-        visible = [False] * (len(results) * n_dims * 2)  # (true + pred) * dims * results
-        start_idx = i * n_dims * 2
-        
-        # Add traces for each dimension
-        for dim in range(n_dims):
-            # True values trace
-            fig.add_trace(go.Scatter(
-                x=np.arange(len(true_vals)),
-                y=true_vals[:, dim],
-                name=f'True Dim {dim+1}',
-                line=dict(color=px.colors.qualitative.Plotly[dim]),
-                visible=(i==0)  # Only show first set by default
-            ))
-            
-            # Predictions trace
-            fig.add_trace(go.Scatter(
-                x=np.arange(len(preds)),
-                y=preds[:, dim],
-                name=f'Pred Dim {dim+1}',
-                line=dict(color=px.colors.qualitative.Plotly[dim], dash='dash'),
-                visible=(i==0)
-            ))
-            
-            # Set visibility for this parameter set
-            visible[start_idx + dim*2] = True      # True values
-            visible[start_idx + dim*2 + 1] = True   # Predictions
-        
-        visible_matrix.append(visible)
-        
-        # Create button for this parameter set
-        buttons.append(dict(
-            label=f"Params {i+1} (RMSE: {result['metrics']['RMSE']:.3f})",
-            method="update",
-            args=[{"visible": visible_matrix[i]},
-                  {"title": {
-                      "text": f"{system_name} - Set {i+1} (RMSE: {result['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_str}</span>",
-                      "x": 0.5,
-                      "xanchor": "center"
-                  }}]
-        ))
-    
-    # Initial title with first parameter set
-    initial_title = {
-        "text": f"{system_name} - Set 1 (RMSE: {results[0]['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
-        "x": 0.5,
-        "xanchor": "center"
-    }
-    
-    # Update layout with dropdown menu
-    fig.update_layout(
-        title=initial_title,
-        updatemenus=[{
-            "buttons": buttons,
-            "direction": "down",
-            "showactive": True,
-            "x": 0.1,
-            "y": 1.2,  # Moved slightly higher to accommodate longer title
-            "xanchor": "left",
-            "yanchor": "top"
-        }],
-        template="plotly_white",
-        hovermode="x unified",
-        margin=dict(t=120)  # Increase top margin for longer title
-    )
-    
-    if save_html:
-        fig.write_html(f"{system_name}_predictions.html")
-    else: fig.show()
 
-
-def plot_multidimensional_3d(results, system_name, pp: int, save_html=False, path: str = "Examples/Input_Discretization/Plots/3DPlots/", show: bool = False):
+def plot_multidimensional_3d(results, system_name, pp: int, save_html=False, path: str = "Examples/Input_Discretization/Plots/3DPlots/", show: bool = False) :
     """
-    Plot 3D trajectories of the system with interactive controls.
+    Plot 3D trajectories of the system at with different point per period and across different parameter values with interactive controls.
     
     Args:
         results: List of result dictionaries containing:
@@ -727,13 +513,7 @@ def plot_3d_scatter(df, ax=None):
     
     if show_plot:
         plt.show()
-        
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import numpy as np
 
-# --- PLOT 1: Parallel Coordinates ---
 def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=None, lower_is_better=True, save_path=None):
     """
     Plots parallel coordinates to show parameter flow, highlighting the best models.
@@ -899,3 +679,67 @@ def plot_all_analysis(df):
     
     plt.tight_layout()
     plt.show()
+
+
+
+
+
+
+
+
+
+###______________________________ Abstractions ______________________________###
+
+
+def _get_trace_builders(dim):
+    """This function returns the number of traces, 1,2,3 for each dimension according to the dimension of the data.
+    This is a abstraction is used because I do not want to reiterate the name setting everywhere in the function. Design Principle: Do NOT REPEAT YOURSELF
+
+    Args:
+        dim (_type_): Dimension of the data
+
+    Raises:
+        ValueError: If the dimension is not supported
+    Returns:
+        _type_: number of traces and 
+    """
+    if dim == 1 or dim == 2:
+        def line_trace(x, y, name, color, lw): #type: ignore
+            return go.Scatter(
+                x=x, y=y,
+                mode='lines',
+                line=dict(width=lw, color=color),
+                name=name
+            )
+
+        def marker_trace(x, y, name, color, size): #type: ignore
+            return go.Scatter(
+                x=[x], y=[y],
+                mode='markers',
+                marker=dict(size=size, color=color),
+                name=name,
+                showlegend=False
+            )
+
+    elif dim == 3:
+        def line_trace(x, y, z, name, color, lw):
+            return go.Scatter3d(
+                x=x, y=y, z=z,
+                mode='lines',
+                line=dict(width=lw, color=color),
+                name=name
+            )
+
+        def marker_trace(x, y, z, name, color, size):
+            return go.Scatter3d(
+                x=[x], y=[y], z=[z],
+                mode='markers',
+                marker=dict(size=size, color=color),
+                name=name,
+                showlegend=False
+            )
+
+    else:
+        raise ValueError("Unsupported dimension")
+
+    return line_trace, marker_trace

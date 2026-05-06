@@ -9,7 +9,8 @@
 * There are key functions in `utils` for discretization:
 
   * `discretization`: Returns a NumPy array structured as `[[points_per_period], [data]]`, with the `data` aligned to the system's internal period estimates. Best suited for periodic or near-periodic systems.
-  * `discretization_with_dt`: Returns just the `data` array, sampled at fixed intervals determined by the model’s `dt` setting. This function **does not resample**, making it preferable for chaotic or aperiodic systems.
+  * `discretization_with_dt`: Returns just the `data` array, sampled at fixed intervals determined by the model’s `dt` setting. This function **does not resample**, making it preferable for chaotic or aperiodic systems. The major downside of this method is that it can does not have
+  fixed points per period.
 
 ---
 
@@ -28,3 +29,24 @@
 * For non-stiff systems like the Lorenz equations, **`RK45` is often faster than `RK23`**. Although each `RK45` step is more computationally intensive, it achieves **higher accuracy**, allowing it to take **larger steps** and **fewer total steps** overall.
 
 * For stiff systems, however, this advantage diminishes or vanishes. `RK45` may suffer from frequent **step rejections** due to error control, making it less efficient. (This is a logical expectation; further empirical testing is needed.)
+
+
+## Core Idea
+
+With the data generated, Now we can analyze each of the system at different points per period. The core idea is to find out if there exists
+similar hyperparameter ranges where we expect similar results across 
+different point per period. 
+
+For that we then find a grid of the parameters, For our testing we have fixed the general grid. The core matrices to minimize or learn is matching trajectory. Which is basically minimizing Root mean square error.
+We can see how the prediction is in a small time window and also 
+if the system is learning long term dynamics with Lyapunov Exponent of 
+the prediction vs true trajectory.
+
+With the core idea out of the way we can discuss the implementation. 
+
+## Implementation Details
+
+1. Data Generation: The Lorenz and all the other attractors are generated using the `data_generation.py` script. It access, `systems.csv` file that has system name and type of the system. These are all the systems in the 
+Dysts.
+
+

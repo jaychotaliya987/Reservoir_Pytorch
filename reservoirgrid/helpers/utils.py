@@ -142,7 +142,7 @@ def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
     return rmse.item()
 
-def parameter_sweep(inputs, parameter_dict, 
+def parameter_sweep_legacy(inputs, parameter_dict, 
                     return_targets=False,
                     sampled_dict = True, 
                     state_downsample= -1,
@@ -190,7 +190,7 @@ def parameter_sweep(inputs, parameter_dict,
             total_combinations = len(param_combi)
 
     results = []
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_inputs = train_inputs.to(device, non_blocking=True)
     test_inputs = test_inputs.to(device, non_blocking=True) 
     train_targets = train_targets.to(device, non_blocking=True)
@@ -200,7 +200,7 @@ def parameter_sweep(inputs, parameter_dict,
         print(f"\nCombination {i}/{total_combinations} - SR: {sr}, LR: {lr}, IS: {ins}")
         
         try:
-            # Memory cleanup
+            
             if device.type == 'cuda': # This works because type is still 'cuda' device is 'cuda:0'
                 torch.cuda.empty_cache()
             
@@ -262,19 +262,32 @@ def parameter_sweep(inputs, parameter_dict,
     
     return results
 
-def parameter_sweep_comp(inputs, parameter_dict, 
+def parameter_sweep(inputs, parameter_dict,
                     return_targets=False,
-                    sampled_dict=True, 
                     state_downsample=-1,
                     **kwargs):
     """
+    Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
+    splits the data for RMSE and have a option to return the test sequence and predictions for furthur use.
+
     Args:
-        sampled_dict (bool): 
-            If False: Performs a Grid Search (Cartesian product of all lists).
-            If True:  Performs a Sweep on pre-calculated pairs (LHS samples).
+        inputs: This is a plain input sequence that of type numpy.ndarray
+        parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
+                        1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
+
+        state_downsample: Downsamples the reservoir states by the given integer value. -1 means no reservoir state extraction. Always returns readout_weights.
+
+
+        **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters
+                    needed for the generation.
+
+    returns:
+        results: A dictionary of the parameters with the prediction. Optionally with the test sequance.
+
+    NOTE: This function assumes parameter combinations are precomputed. Sampling strategies (e.g., grid search, Latin Hypercube) 
+    are intentionally left to the user to keep the sweep logic minimal and unambiguous. 
     """
-    from itertools import product
-    
+       
     # --- 1. Data Preparation (Unified) ---
     # We do this once, regardless of sampling method
     with timer("Data preparation"):
@@ -286,24 +299,15 @@ def parameter_sweep_comp(inputs, parameter_dict,
     # --- 2. Parameter Combination Logic (The Fix) ---
     # We strictly define order to ensure unpacking (sr, lr, ins) later is correct
     keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
-    
-    if not sampled_dict:
-        # CASE A: Grid Search (Old method)
-        # Calculate Cartesian product: [0.1, 0.2] x [0.5, 0.6] = 4 combinations
-        values = [parameter_dict[k] for k in keys_order]
-        param_combi = list(product(*values))
-    else:
-        # CASE B: Pre-sampled / Latin Hypercube (New method)
-        # Pair index 0 with index 0, index 1 with index 1, etc.
-        # Uses zip(): ([0.1, 0.5], [0.2, 0.6]) -> (0.1, 0.2), (0.5, 0.6)
-        values = [parameter_dict[k] for k in keys_order]
-        param_combi = list(zip(*values))
 
-    total_combinations = len(param_combi)
+    values = [parameter_dict[k] for k in keys_order]
+    param_combinations = list(zip(*values))
+
+    total_combinations = len(param_combinations)
 
     # --- 3. Execution Loop ---
     results = []
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Move static data to GPU once
     train_inputs = train_inputs.to(device, non_blocking=True)
@@ -311,14 +315,11 @@ def parameter_sweep_comp(inputs, parameter_dict,
     train_targets = train_targets.to(device, non_blocking=True)
     
     # Iterate
-    for i, (sr, lr, ins) in enumerate(param_combi, 1):
+    for i, (sr, lr, ins) in enumerate(param_combinations, 1):
         iter_start = time()
         print(f"\nCombination {i}/{total_combinations} - SR: {sr:.4f}, LR: {lr:.4f}, IS: {ins:.4f}")
         
         try:
-            # Memory cleanup
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
             
             # Model initialization
             with timer("Model init"):
