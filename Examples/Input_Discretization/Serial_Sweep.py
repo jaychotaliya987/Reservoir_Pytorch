@@ -14,8 +14,8 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 # --- CONFIGURATION ---
-# Set this to the specific PP value you want to run (e.g., 75, 100, etc.)
-TARGET_PP = 75 
+# Set this to the specific PP value you want to run (e.g., 75, 100, etc.) or "all" to run all PP values
+TARGET_PP = "all"
 # ---------------------
 
 # System List
@@ -71,10 +71,13 @@ for system in system_list:
          if T_system[i][0] == TARGET_PP:
              selected_indices.append(i)
              break # Stop after finding the first match
-            
+         if TARGET_PP == 'all':
+             selected_indices.append(i) 
+
     if not selected_indices:
          print(f"Warning: TARGET_PP {TARGET_PP} not found in system {system_name}. Skipping.")
          continue
+    
     print(f"Found TARGET_PP {TARGET_PP} at index {selected_indices[0]}. Processing...")        # Run loop ONLY for the selected index
     
     for pp_select in selected_indices:
@@ -84,18 +87,18 @@ for system in system_list:
         snapshot1 = tracemalloc.take_snapshot()
 
         input = T_system[pp_select][1] # select inputs from truncated system
-        input = utils.normalize_data(input) # Normalizes Inputs
+        input = (utils.normalize_data(input)).astype(np.float32) # Normalizes Inputs and casting right now so that reservoir do not cast it in every operation.
         
         r_dim = input.shape[1] # set the input output dims of the reservoir from the input's dimension
         
         results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict, 
                                     reservoir_dim=1300, input_dim= r_dim, 
-                                   output_dim=r_dim, sparsity=0.9, return_targets=True, sampled_dict=True)
+                                    output_dim=r_dim, sparsity=0.9, return_targets=True)
 
 
         pp_num = str(T_system[pp_select][0]) #extract pp_num for name saving
-        result_folder =  "reservoirgrid/Examples/Weight_Landscape/results" + system_name
-        result_path = "reservoirgrid/Examples/Weight_Landscape/results" + system_name + "/" + pp_num + ".pkl" # path of results
+        result_folder =  "results" + system_name + "LHS"
+        result_path = result_folder + "/" + pp_num + ".pkl" # path of results
         
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
