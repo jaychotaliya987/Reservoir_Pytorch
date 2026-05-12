@@ -10,17 +10,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
-path = "Examples/Weight_Landscape/results/Chaotic/"
-system_name = "Lorenz"
+path = "Examples/Input_Discretization/results/Chaotic/"
+system_name = "LorenzLHS"
 system_path = path + system_name
 
 
-file_path = system_path + "/" + "10.0.pkl"
+file_path = system_path + "/" + "75.0.pkl"
 
 with open(file_path, "rb") as f:
     results = pickle.load(f)
 
-viz.plot_multidimensional_3d(results, system_name, pp = 10, save_html = True)
+viz.plot_multidimensional_3d(results, system_name, pp = 75, path = "Examples/Input_Discretization/Plots/3DPlots/",save_html = True)
 
 
     

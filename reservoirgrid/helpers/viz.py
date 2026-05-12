@@ -277,7 +277,7 @@ def visualize_reservoir_states(
     fig.show()
 
 
-def plot_multidimensional_3d(results, system_name, pp: int, save_html=False, path: str = "Examples/Input_Discretization/Plots/3DPlots/", show: bool = False) :
+def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html=False , show: bool = False) :
     """
     Plot 3D trajectories of the system at with different point per period and across different parameter values with interactive controls.
     
