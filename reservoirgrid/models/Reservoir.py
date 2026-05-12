@@ -20,7 +20,7 @@ from typing import Optional, Callable, Type, Union
 
 # Default device (can be overridden)
 _DEFAULT_DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-_DEFAULT_DTYPE = torch.float64
+_DEFAULT_DTYPE = torch.float32
 
 class Reservoir(nn.Module):
     """
