@@ -36,7 +36,7 @@ reservoir.train_readout(inputs[:-steps], targets[:-steps], alpha=1e-6)
 predictions = reservoir.predict(inputs, steps=steps)
 
 #test_data = torch.tensor(inputs[-steps:])
-print(f"RMSE: {utils.RMSE(predictions, inputs[-steps:])}")
+print(f"RMSE: {utils.RMSE(predictions.cpu().numpy(), inputs[-steps:].cpu().numpy())}")
 predictions = predictions.squeeze(1).cpu().numpy()
 
 print(f"Predictions shape: {predictions.shape}")

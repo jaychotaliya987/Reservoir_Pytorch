@@ -72,7 +72,7 @@ time_steps = np.arange(len(test_targets))
 with torch.no_grad():
     predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
 
-error = utils.RMSE(test_targets[:],predictions[:].cpu())
+error = utils.RMSE(test_targets[:],predictions[:].cpu().numpy())
 print(f"RMSE: {error:.4f}")
 predictions = predictions.cpu().numpy()
 test_targets_np = test_targets.cpu().numpy()

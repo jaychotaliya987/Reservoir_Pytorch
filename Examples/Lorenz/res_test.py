@@ -57,5 +57,5 @@ states = ResRose.reservoir_states.cpu()
 viz.visualize_reservoir_states(model = ResRose, show_distribution=False)
 
 prediction = ResRose.predict(train_inputs, steps=len(test_targets)).cpu()
-rmse = utils.RMSE(test_targets, prediction)
+rmse = utils.RMSE(test_targets.cpu().numpy(), prediction.cpu().numpy())
 print(f"RMSE: {rmse}")
