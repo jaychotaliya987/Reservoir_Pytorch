@@ -129,18 +129,18 @@ def split(dataset:np.ndarray, window:int = 1, **kwargs):
     test_targets = torch.tensor(test_targets)
     return train_inputs, test_inputs, train_targets, test_targets
 
-def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+def RMSE(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     Calculate the Root Mean Square Error (RMSE) between true and predicted values.
     Args:
-        y_true (torch.Tensor): True values.
-        y_pred (torch.Tensor): Predicted values.
+        y_true (np.ndarray): True values.
+        y_pred (np.ndarray): Predicted values.
     Returns:
         float: RMSE value.
     """
     
-    rmse = torch.sqrt(torch.mean((y_true - y_pred) ** 2))
-    return rmse.item()
+    rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    return rmse
 
 def parameter_sweep(inputs, parameter_dict,
                     return_targets=True,
