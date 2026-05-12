@@ -143,7 +143,7 @@ def RMSE(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     return rmse.item()
 
 def parameter_sweep(inputs, parameter_dict,
-                    return_targets=False,
+                    return_targets=True,
                     state_downsample=-1,
                     **kwargs):
     """
@@ -155,9 +155,10 @@ def parameter_sweep(inputs, parameter_dict,
         parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
                         1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
 
-        state_downsample: Downsamples the reservoir states by the given integer value. -1 means no reservoir state extraction. Always returns readout_weights.
+        return_targets: This is a flag to return the test sequence. If you need it for analysis of the reservoir.
 
-
+        state_downsample: Downsamples the reservoir states by the given integer value. -1 means no reservoir state extraction.
+        
         **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters
                     needed for the generation.
 
@@ -172,8 +173,7 @@ def parameter_sweep(inputs, parameter_dict,
     # We do this once, regardless of sampling method
     with timer("Data preparation"):
         train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
-        test_targets = test_targets.detach().cpu()
-        test_targets_np = test_targets.numpy() if return_targets else None
+        test_targets_np = test_targets.numpy() if return_targets else None #This is for storage. So that I can calculate the matrices of need after the sweep.
         steps_to_predict = len(test_targets)
 
     # --- 2. Parameter Combination Logic (The Fix) ---
@@ -209,6 +209,8 @@ def parameter_sweep(inputs, parameter_dict,
                     input_scaling=ins,
                     **{k:v for k,v in kwargs.items() if k != 'device'}
                 )
+                print(f"Model initialized on {device}")
+
             
             # Training
             with timer("Training"):
@@ -226,12 +228,10 @@ def parameter_sweep(inputs, parameter_dict,
                         train_inputs, 
                         steps=steps_to_predict
                     ).cpu()
-                    rmse = RMSE(test_targets, prediction)
                     
             # Store results
             result = {
                 'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
-                'metrics': {'RMSE': float(rmse)},
                 'predictions': prediction,
                 'readout_weights': model.readout.weight.detach().cpu().numpy()
             }
@@ -244,7 +244,6 @@ def parameter_sweep(inputs, parameter_dict,
                     result['reservoir_states'] = model.reservoir_states.detach().cpu().numpy()[::state_downsample]
             
             results.append(result)
-            print(f"RMSE: {rmse:.4f} | Iter time: {time()-iter_start:.2f}s")
             
         except Exception as e:
             print(f"Failed on combination {i}: {str(e)}")
