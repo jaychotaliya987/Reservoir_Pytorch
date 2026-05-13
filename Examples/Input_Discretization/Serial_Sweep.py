@@ -14,7 +14,7 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 # Set this to the specific PP value you want to run (e.g., 75, 100, etc.) or "all" to run all PP values
-TARGET_PP = "all"
+TARGET_PP = [80, 85, 90, 95, 100]
 # ---------------------
 
 # System List
@@ -62,9 +62,8 @@ for system in system_list:
     selected_indices = []                                           # List to store indices of matching PP values
     
     for i in range(len(T_system['pp'])):
-         if T_system[i][0] == TARGET_PP:
+         if T_system[i][0] in TARGET_PP:
              selected_indices.append(i)
-             break 
          if TARGET_PP == 'all':
              selected_indices.append(i) 
 
