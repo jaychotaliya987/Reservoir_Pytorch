@@ -9,7 +9,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from reservoirgrid.datasets import LorenzAttractor
-from reservoirgrid.models import Reservoir
+from reservoirgrid.models import Reservoir_batched as Reservoir
 from reservoirgrid.helpers import utils
 
 import plotly.graph_objects as go
@@ -72,10 +72,14 @@ time_steps = np.arange(len(test_targets))
 with torch.no_grad():
     predictions = ResLorenz.predict(train_inputs, steps=len(test_targets))
 
-error = utils.RMSE(test_targets[:],predictions[:].cpu().numpy())
-print(f"RMSE: {error:.4f}")
-predictions = predictions.cpu().numpy()
+
+predictions_np = predictions.cpu().numpy()
 test_targets_np = test_targets.cpu().numpy()
+
+
+error = utils.RMSE(y_true=test_targets_np[:],y_pred=predictions_np[:])
+print(f"RMSE: {error:.4f}")
+
 
 # Enhanced color scheme matching original
 colors = {
@@ -125,7 +129,7 @@ for i, component in enumerate(['X', 'Y', 'Z'], 1):
     # Predictions (after prediction start)
     fig_components.add_trace(go.Scatter(
         x=time_steps,
-        y=predictions[:, i-1],
+        y=predictions_np[:, i-1],
         mode='lines',
         line=dict(color=colors['prediction'], width=2.5),
         name='Prediction',
@@ -227,9 +231,9 @@ fig_compare.add_trace(go.Scatter3d(
 
 # Add predictions (solid orange)
 fig_compare.add_trace(go.Scatter3d(
-    x=predictions[:, 0],
-    y=predictions[:, 1],
-    z=predictions[:, 2],
+    x=predictions_np[:, 0],
+    y=predictions_np[:, 1],
+    z=predictions_np[:, 2],
     mode='lines',
     line=dict(
         color=colors['prediction'],
