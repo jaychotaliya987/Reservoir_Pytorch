@@ -9,7 +9,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from reservoirgrid.datasets import LorenzAttractor
-from reservoirgrid.models import Reservoir_batched as Reservoir
+from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils
 
 import plotly.graph_objects as go
