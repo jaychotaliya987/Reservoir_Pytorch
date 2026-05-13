@@ -153,12 +153,11 @@ class Reservoir(nn.Module):
              self.reservoir_state = torch.zeros(batch_size, self.reservoir_dim, device=self.device, dtype=self.dtype)
 
         # --- Process Sequence ---
-        collected_states = []
+        self.reservoir_states = torch.empty(seq_len, batch_size, self.reservoir_dim, device=self.device, dtype=self.dtype)
+        noise_all = torch.randn(seq_len, batch_size, self.reservoir_dim, device=self.device, dtype=self.dtype) * self.noise_level
+
         for t in range(seq_len):
             ut = u[t] # BatchSize x InputDim
-
-            # Add small noise for regularization
-            noise = torch.randn_like(self.reservoir_state) * self.noise_level
 
             # Calculate pre-activation state: (BatchSize x ReservoirDim)
             # W_in: ReservoirDim x InputDim
@@ -169,16 +168,13 @@ class Reservoir(nn.Module):
             input_term = torch.matmul(ut, self.W_in.T)  # BatchSize x ReservoirDim
             recurrent_term = torch.matmul(self.reservoir_state, self.W.T) # BatchSize x ReservoirDim
 
-            pre_activation = input_term + recurrent_term + noise
+            pre_activation = input_term + recurrent_term + noise_all[t]
             activated_state = self.activation(pre_activation) # BatchSize x ReservoirDimh
             # Update reservoir state with leaky integration
             self.reservoir_state = ((1 - self.leak_rate) * self.reservoir_state +
                                     self.leak_rate * activated_state)
 
-            collected_states.append(self.reservoir_state) # Store state for this time step
-
-        # Stack collected states: SeqLen x BatchSize x ReservoirDim
-        self.reservoir_states = torch.stack(collected_states, dim=0)
+            self.reservoir_states[t] = self.reservoir_state # Store state for this time step
 
         # --- Apply Readout ---
         # Reshape states if needed for linear layer: (SeqLen * BatchSize) x ReservoirDim
