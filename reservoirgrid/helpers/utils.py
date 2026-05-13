@@ -198,7 +198,7 @@ def parameter_sweep(inputs, parameter_dict,
             
             # Initialize batched model ONCE per batch
             with timer(f"Batch init ({actual_batch_size} configs)"):
-                batch_model = Reservoir_batched(
+                batch_model = Reservoir(
                     spectral_radius=sr_batch,
                     leak_rate=lr_batch,
                     input_scaling=ins_batch,
@@ -283,3 +283,303 @@ def truncate(system):
         system['trajectory'][i]= system['trajectory'][i][:num_points] # Slices till the points required reached
 
     return system
+
+
+
+#------------------ Deprecated and Testing ---------------------#
+
+
+
+def parameter_sweep_serial(inputs, parameter_dict,
+                    return_targets=True,
+                    state_downsample=-1,
+                    **kwargs):
+    """
+    Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
+    splits the data for RMSE and have a option to return the test sequence and predictions for furthur use.
+
+
+    Args:
+        inputs: This is a plain input sequence that of type numpy.ndarray
+        parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
+                        1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
+
+
+        return_targets: This is a flag to return the test sequence. If you need it for analysis of the reservoir.
+
+
+        state_downsample: Downsamples the reservoir states by the given integer value. -1 means no reservoir state extraction.
+        
+        **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters
+                    needed for the generation.
+
+
+    returns:
+        results: A dictionary of the parameters with the prediction. Optionally with the test sequance.
+
+
+    NOTE: This function assumes parameter combinations are precomputed. Sampling strategies (e.g., grid search, Latin Hypercube) 
+    are intentionally left to the user to keep the sweep logic minimal and unambiguous. 
+    """
+       
+    # --- 1. Data Preparation (Unified) ---
+    # We do this once, regardless of sampling method
+    with timer("Data preparation"):
+        train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+        test_targets_np = test_targets.numpy() if return_targets else None #This is for storage. So that I can calculate the matrices of need after the sweep.
+        steps_to_predict = len(test_targets)
+
+
+    # --- 2. Parameter Combination Logic (The Fix) ---
+    # We strictly define order to ensure unpacking (sr, lr, ins) later is correct
+    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
+
+
+    values = [parameter_dict[k] for k in keys_order]
+    param_combinations = list(zip(*values))
+
+
+    total_combinations = len(param_combinations)
+
+
+    # --- 3. Execution Loop ---
+    results = []
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Move static data to GPU once
+    train_inputs = train_inputs.to(device, non_blocking=True)
+    test_inputs = test_inputs.to(device, non_blocking=True) 
+    train_targets = train_targets.to(device, non_blocking=True)
+    
+    # Iterate
+    for i, (sr, lr, ins) in enumerate(param_combinations, 1):
+        iter_start = time()
+        print(f"\nCombination {i}/{total_combinations} - SR: {sr:.4f}, LR: {lr:.4f}, IS: {ins:.4f}")
+        
+        try:
+            
+            # Model initialization
+            with timer("Model init"):
+                model = Reservoir(
+                    spectral_radius=sr,
+                    leak_rate=lr,
+                    input_scaling=ins,
+                    **{k:v for k,v in kwargs.items() if k != 'device'}
+                )
+                print(f"Model initialized on {device}")
+
+
+            
+            # Training
+            with timer("Training"):
+                model.train_readout(
+                    train_inputs,
+                    train_targets,
+                    warmup=int(len(train_inputs)*0.2),
+                    alpha=1e-5  # Ridge parameter
+                )
+            
+            # Prediction
+            with timer("Prediction"):
+                with torch.no_grad():
+                    prediction = model.predict(
+                        train_inputs, 
+                        steps=steps_to_predict
+                    ).cpu()
+                    
+            # Store results
+            result = {
+                'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
+                'predictions': prediction,
+                'readout_weights': model.readout.weight.detach().cpu().numpy()
+            }
+            
+            if return_targets:
+                result['true_value'] = test_targets_np
+            
+            if state_downsample > 0:
+                with timer("State extraction"):
+                    result['reservoir_states'] = model.reservoir_states.detach().cpu().numpy()[::state_downsample]
+            
+            results.append(result)
+            
+        except Exception as e:
+            print(f"Failed on combination {i}: {str(e)}")
+            continue
+            
+        finally:
+            # Cleanup
+            if 'model' in locals():
+                del model #type: ignore
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+    
+    return results
+
+
+
+
+def parameter_sweep_DIAGNOSTIC(inputs, parameter_dict,
+                    return_targets=True,
+                    state_downsample=-1,
+                    batch_size=64,
+                    **kwargs):
+    """Diagnostic version with detailed timing breakdown"""
+    
+    from time import time
+    from collections import defaultdict
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Timing dictionary
+    timings = defaultdict(list)
+    
+    # --- Data Preparation ---
+    t0 = time()
+    train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
+    test_targets_np = test_targets.numpy() if return_targets else None
+    steps_to_predict = len(test_targets)
+    timings['data_prep'].append(time() - t0)
+
+    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
+    values = [parameter_dict[k] for k in keys_order]
+    param_combinations = list(zip(*values))
+    total_combinations = len(param_combinations)
+
+    # Move data to GPU
+    t0 = time()
+    train_inputs = train_inputs.to(device, non_blocking=True)
+    test_inputs = test_inputs.to(device, non_blocking=True) 
+    train_targets = train_targets.to(device, non_blocking=True)
+    if device.type == 'cuda':
+        torch.cuda.synchronize()  # IMPORTANT: Force GPU to finish
+    timings['gpu_transfer'].append(time() - t0)
+    
+    results = []
+    
+    # --- Process Batches ---
+    for batch_num, batch_start in enumerate(range(0, total_combinations, batch_size)):
+        batch_end = min(batch_start + batch_size, total_combinations)
+        batch_indices = range(batch_start, batch_end)
+        actual_batch_size = batch_end - batch_start
+        
+        print(f"\n{'='*80}")
+        print(f"BATCH {batch_num + 1} | Configs {batch_start + 1}-{batch_end}")
+        print(f"{'='*80}")
+        
+        # ===== OPERATION 1: NUMPY PREPROCESSING (CPU) =====
+        t0 = time()
+        sr_batch = np.array([param_combinations[i][0] for i in batch_indices])
+        lr_batch = np.array([param_combinations[i][1] for i in batch_indices])
+        ins_batch = np.array([param_combinations[i][2] for i in batch_indices])
+        cpu_preprocess_time = time() - t0
+        timings['cpu_preprocess'].append(cpu_preprocess_time)
+        print(f"1. CPU Preprocessing:        {cpu_preprocess_time*1000:.2f} ms")
+        
+        # ===== OPERATION 2: MODEL INITIALIZATION (GPU) =====
+        t0 = time()
+        batch_model = Reservoir(
+            spectral_radius=sr_batch,
+            leak_rate=lr_batch,
+            input_scaling=ins_batch,
+            device=device,
+            **{k: v for k, v in kwargs.items() if k != 'device'}
+        )
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        init_time = time() - t0
+        timings['model_init'].append(init_time)
+        print(f"2. Model Init:               {init_time*1000:.2f} ms")
+        
+        # ===== OPERATION 3: TRAINING (GPU) =====
+        t0 = time()
+        batch_model.train_readout(
+            train_inputs,
+            train_targets,
+            warmup=int(len(train_inputs) * 0.2),
+            alpha=1e-5
+        )
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        train_time = time() - t0
+        timings['training'].append(train_time)
+        print(f"3. Training:                 {train_time*1000:.2f} ms")
+        
+        # ===== OPERATION 4: PREDICTION (GPU) =====
+        t0 = time()
+        with torch.no_grad():
+            batch_predictions = batch_model.predict(
+                train_inputs,
+                steps=steps_to_predict
+            )
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        predict_time = time() - t0
+        timings['prediction'].append(predict_time)
+        print(f"4. Prediction:               {predict_time*1000:.2f} ms")
+        
+        # ===== OPERATION 5: GPU->CPU TRANSFER (PCIe) =====
+        t0 = time()
+        batch_predictions_cpu = batch_predictions.cpu()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        transfer_time = time() - t0
+        timings['gpu_to_cpu_transfer'].append(transfer_time)
+        print(f"5. GPU→CPU Transfer:         {transfer_time*1000:.2f} ms")
+        
+        # ===== OPERATION 6: RESULT EXTRACTION (CPU) =====
+        t0 = time()
+        for config_idx, param_idx in enumerate(batch_indices):
+            sr, lr, ins = param_combinations[param_idx]
+            
+            result = {
+                'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
+                'predictions': batch_predictions_cpu[:, config_idx, :],
+                'readout_weights': batch_model.W_out[config_idx].detach().cpu().numpy()
+            }
+            
+            if return_targets:
+                result['true_value'] = test_targets_np
+            
+            results.append(result)
+        
+        extraction_time = time() - t0
+        timings['result_extraction'].append(extraction_time)
+        print(f"6. Result Extraction:        {extraction_time*1000:.2f} ms")
+        
+        # ===== OPERATION 7: CLEANUP (GPU Sync) =====
+        t0 = time()
+        del batch_model
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        cleanup_time = time() - t0
+        timings['cleanup'].append(cleanup_time)
+        print(f"7. Cleanup & Cache Clear:    {cleanup_time*1000:.2f} ms")
+        
+        batch_total = cpu_preprocess_time + init_time + train_time + predict_time + transfer_time + extraction_time + cleanup_time
+        print(f"\nBatch Total Time:            {batch_total*1000:.2f} ms")
+        print(f"{'='*80}")
+    
+    # ===== SUMMARY STATISTICS =====
+    print(f"\n\n{'='*80}")
+    print("DIAGNOSTIC SUMMARY")
+    print(f"{'='*80}\n")
+    
+    for op_name, op_times in timings.items():
+        total_ms = sum(op_times) * 1000
+        avg_ms = total_ms / len(op_times) if op_times else 0
+        print(f"{op_name:30s} | Total: {total_ms:10.2f} ms | Avg: {avg_ms:8.2f} ms | Count: {len(op_times)}")
+    
+    grand_total = sum(sum(times) for times in timings.values())
+    print(f"\n{'Grand Total':30s} | {grand_total*1000:10.2f} ms")
+    
+    # Calculate percentages
+    print(f"\n{'='*80}")
+    print("TIME BREAKDOWN (%)\n")
+    for op_name, op_times in sorted(timings.items(), key=lambda x: sum(x[1]), reverse=True):
+        total_ms = sum(op_times) * 1000
+        percentage = (total_ms / (grand_total * 1000)) * 100 if grand_total > 0 else 0
+        print(f"{op_name:30s} | {percentage:6.2f}% | {total_ms:10.2f} ms")
+    
+    return results
