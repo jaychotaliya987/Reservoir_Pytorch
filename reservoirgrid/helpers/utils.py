@@ -142,119 +142,126 @@ def RMSE(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
     return rmse
 
+
 def parameter_sweep(inputs, parameter_dict,
                     return_targets=True,
                     state_downsample=-1,
+                    batch_size=32,  # NEW: Process 32 configs at once
                     **kwargs):
     """
-    Generates the reservoir, train the readout with Ridge Regression and generates the predictions on the system.
-    splits the data for RMSE and have a option to return the test sequence and predictions for furthur use.
-
+    Batched parameter sweep using Reservoir_batched for GPU acceleration.
+    
     Args:
-        inputs: This is a plain input sequence that of type numpy.ndarray
-        parameter_dict : This is a dictionary of parameters to sweep through. This only accepts 3 main parameter of the RC
-                        1. Spectral Radius, 2.Leaky Rate, 3. Input Scaling in that order.
-
-        return_targets: This is a flag to return the test sequence. If you need it for analysis of the reservoir.
-
-        state_downsample: Downsamples the reservoir states by the given integer value. -1 means no reservoir state extraction.
-        
-        **kwargs : This are all the parameters passed to the model.Reservoir class for generation. Intrinsically need all the parameters
-                    needed for the generation.
-
-    returns:
-        results: A dictionary of the parameters with the prediction. Optionally with the test sequance.
-
-    NOTE: This function assumes parameter combinations are precomputed. Sampling strategies (e.g., grid search, Latin Hypercube) 
-    are intentionally left to the user to keep the sweep logic minimal and unambiguous. 
+        batch_size: Number of reservoir configs to train/predict simultaneously (default 32)
     """
-       
-    # --- 1. Data Preparation (Unified) ---
-    # We do this once, regardless of sampling method
+    
+    # --- 1. Data Preparation (Once) ---
     with timer("Data preparation"):
         train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
-        test_targets_np = test_targets.numpy() if return_targets else None #This is for storage. So that I can calculate the matrices of need after the sweep.
+        test_targets_np = test_targets.numpy() if return_targets else None
         steps_to_predict = len(test_targets)
 
-    # --- 2. Parameter Combination Logic (The Fix) ---
-    # We strictly define order to ensure unpacking (sr, lr, ins) later is correct
-    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
 
+    # --- 2. Parameter Combinations ---
+    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
     values = [parameter_dict[k] for k in keys_order]
     param_combinations = list(zip(*values))
-
     total_combinations = len(param_combinations)
 
-    # --- 3. Execution Loop ---
-    results = []
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Move static data to GPU once
+    # Move data to GPU once
     train_inputs = train_inputs.to(device, non_blocking=True)
     test_inputs = test_inputs.to(device, non_blocking=True) 
     train_targets = train_targets.to(device, non_blocking=True)
     
-    # Iterate
-    for i, (sr, lr, ins) in enumerate(param_combinations, 1):
-        iter_start = time()
-        print(f"\nCombination {i}/{total_combinations} - SR: {sr:.4f}, LR: {lr:.4f}, IS: {ins:.4f}")
+    results = []
+    
+    # --- 3. Process in Batches ---
+    for batch_start in range(0, total_combinations, batch_size):
+        batch_end = min(batch_start + batch_size, total_combinations)
+        batch_indices = range(batch_start, batch_end)
+        actual_batch_size = batch_end - batch_start
+        
+        print(f"\n{'='*60}")
+        print(f"Batch {batch_start // batch_size + 1} | Configs {batch_start + 1}-{batch_end}/{total_combinations}")
+        print(f"{'='*60}")
+        
+        batch_iter_start = time()
         
         try:
+            # Extract parameters for this batch
+            sr_batch = np.array([param_combinations[i][0] for i in batch_indices])
+            lr_batch = np.array([param_combinations[i][1] for i in batch_indices])
+            ins_batch = np.array([param_combinations[i][2] for i in batch_indices])
             
-            # Model initialization
-            with timer("Model init"):
-                model = Reservoir(
-                    spectral_radius=sr,
-                    leak_rate=lr,
-                    input_scaling=ins,
-                    **{k:v for k,v in kwargs.items() if k != 'device'}
+            # Initialize batched model ONCE per batch
+            with timer(f"Batch init ({actual_batch_size} configs)"):
+                batch_model = Reservoir_batched(
+                    spectral_radius=sr_batch,
+                    leak_rate=lr_batch,
+                    input_scaling=ins_batch,
+                    **{k: v for k, v in kwargs.items() if k != 'device'}
                 )
-                print(f"Model initialized on {device}")
-
+                print(f"Batched model on {device}, configs={actual_batch_size}, reservoir_dim={batch_model.reservoir_dim}")
             
-            # Training
-            with timer("Training"):
-                model.train_readout(
+            # Train ALL configs at once (analytical ridge regression)
+            with timer(f"Batch training ({actual_batch_size} configs)"):
+                batch_model.train_readout(
                     train_inputs,
                     train_targets,
-                    warmup=int(len(train_inputs)*0.2),
-                    alpha=1e-5  # Ridge parameter
+                    warmup=int(len(train_inputs) * 0.2),
+                    alpha=1e-5
                 )
             
-            # Prediction
-            with timer("Prediction"):
+            # Predict ALL configs at once
+            with timer(f"Batch prediction ({actual_batch_size} configs)"):
                 with torch.no_grad():
-                    prediction = model.predict(
-                        train_inputs, 
+                    batch_predictions = batch_model.predict(
+                        train_inputs,
                         steps=steps_to_predict
-                    ).cpu()
+                    )  # (steps, B, O)
+            
+            # Extract per-config results
+            with timer(f"Result extraction ({actual_batch_size} configs)"):
+                for config_idx, param_idx in enumerate(batch_indices):
+                    sr, lr, ins = param_combinations[param_idx]
                     
-            # Store results
-            result = {
-                'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
-                'predictions': prediction,
-                'readout_weights': model.readout.weight.detach().cpu().numpy()
-            }
+                    result = {
+                        'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
+                        'predictions': batch_predictions[:, config_idx, :].cpu(),
+                        'readout_weights': batch_model.W_out[config_idx].detach().cpu().numpy()
+                    }
+                    
+                    if return_targets:
+                        result['true_value'] = test_targets_np
+                    
+                    if state_downsample > 0:
+                        # Extract states for this config only
+                        result['reservoir_states'] = batch_model.reservoir_states[:, config_idx, :].detach().cpu().numpy()[::state_downsample]
+                    
+                    results.append(result)
             
-            if return_targets:
-                result['true_value'] = test_targets_np
-            
-            if state_downsample > 0:
-                with timer("State extraction"):
-                    result['reservoir_states'] = model.reservoir_states.detach().cpu().numpy()[::state_downsample]
-            
-            results.append(result)
+            batch_iter_end = time()
+            print(f"Batch time: {batch_iter_end - batch_iter_start:.2f}s ({actual_batch_size} configs)")
             
         except Exception as e:
-            print(f"Failed on combination {i}: {str(e)}")
+            print(f"Error in batch {batch_start // batch_size + 1}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             continue
-            
+        
         finally:
-            # Cleanup
-            if 'model' in locals():
-                del model #type: ignore
+            # Cleanup batch model
+            if 'batch_model' in locals():
+                del batch_model # type: ignore
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
+    
+    print(f"\n{'='*60}")
+    print(f"Total combinations processed: {len(results)}/{total_combinations}")
+    print(f"{'='*60}\n")
     
     return results
 
