@@ -14,7 +14,7 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 # Set this to the specific PP value you want to run (e.g., 75, 100, etc.) or "all" to run all PP values
-TARGET_PP = [80, 85, 90, 95, 100]
+TARGET_PP = [95, 100]
 # ---------------------
 
 # System List
@@ -23,7 +23,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 1. Setup
 d = 3
-n = 1500
+n = 64
 
 # 2. Generate raw samples (0.0 to 1.0)
 sampler = qmc.LatinHypercube(d=d)
@@ -82,7 +82,7 @@ for system in system_list:
         
         r_dim = input.shape[1]                                      #set the input output dims of the reservoir from the input's dimension
         
-        results = utils.parameter_sweep(inputs=input, parameter_dict=parameter_dict, 
+        results = utils.parameter_sweep_serial(inputs=input, parameter_dict=parameter_dict, 
                                     reservoir_dim=1300, input_dim= r_dim, 
                                     output_dim=r_dim, sparsity=0.9, return_targets=True)
 

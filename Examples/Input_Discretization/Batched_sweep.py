@@ -17,7 +17,7 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 
-TARGET_PP = [90, 95, 100]
+TARGET_PP = [95, 100]
 system_list = ["Lorenz"]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -88,7 +88,7 @@ for system in system_list:
         print(f"Input/Output dim: {r_dim}")
         
         # IMPROVED: Call batched parameter_sweep with batch_size tuned to GPU
-        results = utils.parameter_sweep(
+        results = utils.parameter_sweep_DIAGNOSTIC(
             inputs=input_data,
             parameter_dict=parameter_dict,
             reservoir_dim=1300,
