@@ -163,11 +163,7 @@ def parameter_sweep(inputs, parameter_dict,
 
 
     # --- 2. Parameter Combinations ---
-    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
-    values = [parameter_dict[k] for k in keys_order]
-    param_combinations = list(zip(*values))
-    total_combinations = len(param_combinations)
-
+    total_combinations = len(parameter_dict["SpectralRadius"])
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
@@ -192,19 +188,20 @@ def parameter_sweep(inputs, parameter_dict,
         
         try:
             # Extract parameters for this batch
-            sr_batch = np.array([param_combinations[i][0] for i in batch_indices])
-            lr_batch = np.array([param_combinations[i][1] for i in batch_indices])
-            ins_batch = np.array([param_combinations[i][2] for i in batch_indices])
-            
+            sr_batch = parameter_dict["SpectralRadius"][batch_indices]
+            lr_batch = parameter_dict["LeakyRate"][batch_indices]
+            ins_batch = parameter_dict["InputScaling"][batch_indices]
+
             # Initialize batched model ONCE per batch
             with timer(f"Batch init ({actual_batch_size} configs)"):
                 batch_model = Reservoir(
                     spectral_radius=sr_batch,
                     leak_rate=lr_batch,
                     input_scaling=ins_batch,
+                    device=device,
                     **{k: v for k, v in kwargs.items() if k != 'device'}
                 )
-                print(f"Batched model on {device}, configs={actual_batch_size}, reservoir_dim={batch_model.reservoir_dim}")
+            print(f"Batched model on {device}, configs={actual_batch_size}, reservoir_dim={batch_model.reservoir_dim}")
             
             # Train ALL configs at once (analytical ridge regression)
             with timer(f"Batch training ({actual_batch_size} configs)"):
@@ -226,8 +223,8 @@ def parameter_sweep(inputs, parameter_dict,
             # Extract per-config results
             with timer(f"Result extraction ({actual_batch_size} configs)"):
                 for config_idx, param_idx in enumerate(batch_indices):
-                    sr, lr, ins = param_combinations[param_idx]
-                    
+                    sr, lr, ins = parameter_dict["SpectralRadius"][param_idx], parameter_dict["LeakyRate"][param_idx], parameter_dict["InputScaling"][param_idx]
+
                     result = {
                         'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
                         'predictions': batch_predictions[:, config_idx, :].cpu(),
@@ -250,14 +247,12 @@ def parameter_sweep(inputs, parameter_dict,
             print(f"Error in batch {batch_start // batch_size + 1}: {str(e)}")
             import traceback
             traceback.print_exc()
-            continue
+            raise
         
         finally:
             # Cleanup batch model
             if 'batch_model' in locals():
                 del batch_model # type: ignore
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
     
     print(f"\n{'='*60}")
     print(f"Total combinations processed: {len(results)}/{total_combinations}")
@@ -585,220 +580,3 @@ def parameter_sweep_DIAGNOSTIC(inputs, parameter_dict,
     
     return results
 
-
-def parameter_sweep_OPTIMIZED(inputs, parameter_dict,
-                    return_targets=True,
-                    state_downsample=-1,
-                    batch_size=64,
-                    **kwargs):
-    """
-    ⚡ OPTIMIZED SWEEP - Reduces GPU idle time by:
-    1. Pre-computing all parameter batches CPU-side (eliminates idle #1)
-    2. Using pinned memory for GPU→CPU transfers (reduces idle #2)
-    3. Vectorizing result extraction (eliminates idle #3)
-    4. Async GPU operations for next batch during cleanup (eliminates idle #4)
-    
-    Expected improvements:
-    - GPU Utilization: 30-40% → 75-85%
-    - Speedup: 2-3x vs current batched sweep
-    - RTX 4060: 1500 configs in ~4-6 minutes (vs 8-12 minutes)
-    """
-    
-    from collections import defaultdict
-    import torch.utils.dlpack as dlpack
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # Track optimization metrics
-    metrics = defaultdict(float)
-    t_total_start = time()
-    
-    # ===== PHASE 0: DATA PREPARATION =====
-    print(f"\n{'='*80}")
-    print("PHASE 0: DATA PREPARATION")
-    print(f"{'='*80}")
-    
-    t0 = time()
-    train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
-    test_targets_np = test_targets.numpy() if return_targets else None
-    steps_to_predict = len(test_targets)
-    metrics['data_prep'] = time() - t0
-    print(f"✓ Data split: {metrics['data_prep']*1000:.2f} ms")
-
-    keys_order = ["SpectralRadius", "LeakyRate", "InputScaling"]
-    values = [parameter_dict[k] for k in keys_order]
-    param_combinations = list(zip(*values))
-    total_combinations = len(param_combinations)
-    print(f"✓ Total combinations: {total_combinations}")
-
-    # Move data to GPU
-    t0 = time()
-    train_inputs = train_inputs.to(device, non_blocking=True)
-    test_inputs = test_inputs.to(device, non_blocking=True) 
-    train_targets = train_targets.to(device, non_blocking=True)
-    if device.type == 'cuda':
-        torch.cuda.synchronize()
-    metrics['gpu_transfer'] = time() - t0
-    print(f"✓ GPU transfer: {metrics['gpu_transfer']*1000:.2f} ms")
-    
-    # ===== OPTIMIZATION 1: PRE-COMPUTE ALL BATCHES (CPU) =====
-    print(f"\n{'='*80}")
-    print("OPTIMIZATION 1: PRE-COMPUTE PARAMETER BATCHES")
-    print(f"{'='*80}")
-    
-    t0 = time()
-    all_batches = []
-    for batch_start in range(0, total_combinations, batch_size):
-        batch_end = min(batch_start + batch_size, total_combinations)
-        batch_indices = range(batch_start, batch_end)
-        
-        # Pre-compute numpy arrays on CPU (FAST - not blocking GPU)
-        sr_batch = np.array([param_combinations[i][0] for i in batch_indices])
-        lr_batch = np.array([param_combinations[i][1] for i in batch_indices])
-        ins_batch = np.array([param_combinations[i][2] for i in batch_indices])
-        
-        all_batches.append({
-            'sr': sr_batch,
-            'lr': lr_batch,
-            'ins': ins_batch,
-            'indices': list(batch_indices),
-            'num': len(batch_indices)
-        })
-    
-    metrics['precompute_batches'] = time() - t0
-    print(f"✓ Pre-computed {len(all_batches)} batches: {metrics['precompute_batches']*1000:.2f} ms")
-    
-    results = []
-    
-    # ===== OPTIMIZATION 2: ASYNC PROCESSING WITH PINNED MEMORY =====
-    print(f"\n{'='*80}")
-    print("OPTIMIZATION 2: PARALLEL BATCH PROCESSING")
-    print(f"{'='*80}\n")
-    
-    batch_times = []
-    
-    for batch_idx, batch_info in enumerate(all_batches):
-        batch_start_idx = batch_info['indices'][0]
-        batch_end_idx = batch_info['indices'][-1] + 1
-        actual_batch_size = batch_info['num']
-        
-        print(f"Batch {batch_idx + 1}/{len(all_batches)} | Configs {batch_start_idx + 1}-{batch_end_idx}/{total_combinations}")
-        batch_start = time()
-        
-        try:
-            # ===== SUB-PHASE 1: Model Init =====
-            t0 = time()
-            batch_model = Reservoir(
-                spectral_radius=batch_info['sr'],
-                leak_rate=batch_info['lr'],
-                input_scaling=batch_info['ins'],
-                device=device,
-                **{k: v for k, v in kwargs.items() if k != 'device'}
-            )
-            if device.type == 'cuda':
-                torch.cuda.synchronize()
-            init_ms = (time() - t0) * 1000
-            
-            # ===== SUB-PHASE 2: Training (GPU-bound) =====
-            t0 = time()
-            batch_model.train_readout(
-                train_inputs,
-                train_targets,
-                warmup=int(len(train_inputs) * 0.2),
-                alpha=1e-5
-            )
-            if device.type == 'cuda':
-                torch.cuda.synchronize()
-            train_ms = (time() - t0) * 1000
-            
-            # ===== SUB-PHASE 3: Prediction (GPU-bound) =====
-            t0 = time()
-            with torch.no_grad():
-                batch_predictions = batch_model.predict(
-                    train_inputs,
-                    steps=steps_to_predict
-                )  # (steps, B, O)
-            if device.type == 'cuda':
-                torch.cuda.synchronize()
-            pred_ms = (time() - t0) * 1000
-            
-            # ===== OPTIMIZATION 3: VECTORIZED RESULT EXTRACTION =====
-            # Instead of looping and transferring individually, do all transfers at once
-            t0 = time()
-            
-            # Transfer entire batch predictions to CPU in one operation
-            batch_predictions_cpu = batch_predictions.cpu()  # Vectorized transfer
-            readout_weights_cpu = batch_model.W_out.detach().cpu()  # Vectorized transfer
-            
-            if device.type == 'cuda':
-                torch.cuda.synchronize()
-            transfer_ms = (time() - t0) * 1000
-            
-            # Extract results - now CPU-side (no GPU blocking)
-            t0 = time()
-            for config_idx, param_idx in enumerate(batch_info['indices']):
-                sr, lr, ins = param_combinations[param_idx]
-                
-                result = {
-                    'parameters': {'SpectralRadius': sr, 'LeakyRate': lr, 'InputScaling': ins},
-                    'predictions': batch_predictions_cpu[:, config_idx, :],
-                    'readout_weights': readout_weights_cpu[config_idx].numpy()
-                }
-                
-                if return_targets:
-                    result['true_value'] = test_targets_np
-                
-                if state_downsample > 0:
-                    result['reservoir_states'] = batch_model.reservoir_states[:, config_idx, :].detach().cpu().numpy()[::state_downsample]
-                
-                results.append(result)
-            
-            extract_ms = (time() - t0) * 1000
-            
-            # ===== CLEANUP (with pre-staged next batch) =====
-            t0 = time()
-            del batch_model
-            del batch_predictions_cpu
-            del readout_weights_cpu
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-            cleanup_ms = (time() - t0) * 1000
-            
-            batch_total = time() - batch_start
-            batch_times.append(batch_total)
-            
-            print(f"  ├─ Init: {init_ms:6.2f}ms | Train: {train_ms:7.2f}ms | Pred: {pred_ms:7.2f}ms")
-            print(f"  ├─ Transfer: {transfer_ms:5.2f}ms | Extract: {extract_ms:6.2f}ms | Cleanup: {cleanup_ms:6.2f}ms")
-            print(f"  └─ Total: {batch_total:.2f}s ({actual_batch_size} configs, {actual_batch_size/batch_total:.1f} configs/sec)\n")
-            
-        except Exception as e:
-            print(f"  ❌ Error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            continue
-    
-    # ===== FINAL SUMMARY =====
-    t_total_end = time()
-    total_time = t_total_end - t_total_start
-    
-    print(f"{'='*80}")
-    print("⚡ OPTIMIZATION SUMMARY")
-    print(f"{'='*80}\n")
-    
-    avg_batch_time = np.mean(batch_times) if batch_times else 0
-    total_configs_per_sec = len(results) / total_time if total_time > 0 else 0
-    
-    print(f"✓ Total time:               {total_time:.2f}s")
-    print(f"✓ Configs processed:        {len(results)}/{total_combinations}")
-    print(f"✓ Configs/second:           {total_configs_per_sec:.2f}")
-    print(f"✓ Average batch time:       {avg_batch_time:.2f}s")
-    print(f"✓ Batches:                  {len(all_batches)}")
-    
-    if batch_times:
-        print(f"✓ Fastest batch:            {min(batch_times):.2f}s")
-        print(f"✓ Slowest batch:            {max(batch_times):.2f}s")
-    
-    print(f"\n{'='*80}\n")
-    
-    return results

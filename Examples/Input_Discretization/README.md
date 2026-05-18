@@ -30,6 +30,7 @@
 
 * For stiff systems, however, this advantage diminishes or vanishes. `RK45` may suffer from frequent **step rejections** due to error control, making it less efficient. (This is a logical expectation; further empirical testing is needed.)
 
+* The parameter_sweep is as optimized I can get it in this iteration. The GPU utilization saturates when the loop is calculating the  per batch and then takes a almost equivalent time to compute and allocating the next batch data. It is still efficient but I will improve it further in future.
 
 ## Core Idea
 
