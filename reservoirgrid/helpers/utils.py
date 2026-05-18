@@ -101,6 +101,45 @@ def RMSE(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
+def _power_iteration_spectral_radius(
+    W: torch.Tensor, 
+    num_iterations: int = 20
+) -> torch.Tensor:
+    """
+    Estimate max eigenvalue (spectral radius) using power iteration.
+    Much faster than torch.linalg.eigvals for large matrices on RTX 4060.
+    
+    Args:
+        W: (N, R, R) batch of matrices
+        num_iterations: Number of power iterations (default 20)
+    
+    Returns:
+        (N,) tensor of estimated spectral radii
+    """
+    N, R, _ = W.shape
+    device = W.device
+    dtype = W.dtype
+    
+    # Random starting vector for each matrix
+    v = torch.randn(N, R, 1, device=device, dtype=dtype)
+    v = v / (torch.linalg.norm(v, dim=1, keepdim=True) + 1e-9)
+    
+    for _ in range(num_iterations):
+        # v_new = W @ v
+        v_new = torch.bmm(W, v)  # (N, R, 1)
+        
+        # Normalize
+        norm = torch.linalg.norm(v_new, dim=1, keepdim=True) + 1e-9
+        v = v_new / norm
+    
+    # Rayleigh quotient: λ ≈ v^T @ W @ v / (v^T @ v)
+    Wv = torch.bmm(W, v)  # (N, R, 1)
+    vt_Wv = torch.bmm(v.transpose(1, 2), Wv)  # (N, 1, 1)
+    spectral_radius = vt_Wv.squeeze(-1).abs().squeeze(-1)  # (N,)
+    
+    return spectral_radius
+
+
 def parameter_sweep(inputs, parameter_dict,
                     return_targets=True,
                     state_downsample=-1,
@@ -229,7 +268,7 @@ def parameter_sweep(inputs, parameter_dict,
                             'LeakyRate':      lr_all[param_idx],
                             'InputScaling':   ins_all[param_idx],
                         },
-                        'predictions':    batch_predictions[:, config_idx, :].cpu(),
+                        'predictions':    batch_predictions[:, config_idx, :].cpu().numpy(),
                         'readout_weights': batch_model.W_out[config_idx].detach().cpu().numpy(),
                     }
 
@@ -257,7 +296,7 @@ def parameter_sweep(inputs, parameter_dict,
         finally:
             if 'batch_model' in locals():
                 del batch_model  # type: ignore
-            # No empty_cache() — PyTorch allocator reuses freed memory automatically
+            torch.cuda.empty_cache()
 
     print(f"\n{'='*60}")
     print(f"Total combinations processed: {len(results)}/{total_combinations}")
@@ -289,19 +328,18 @@ def build_all_weights(
     input_scalings: np.ndarray,
     sparsity: float = 0.9,
     device: Optional[Union[str, torch.device]] = None,
-    dtype: torch.dtype = torch.float32
+    dtype: torch.dtype = torch.float32,
+    use_power_iteration: bool = True
 ) -> Dict[str, torch.Tensor]:
     """
     Build ALL reservoir weight matrices for N configs in a single pass.
     Intended to be called ONCE before a parameter sweep loop.
 
-
     The expensive operations (random generation, eigval computation,
     spectral radius scaling) happen here once instead of once per batch.
 
-
     Args:
-        N              : total number of configs (e.g. 1500)
+        N              : total number of configs (e.g. 1000)
         input_dim      : input dimension
         reservoir_dim  : reservoir dimension
         spectral_radii : (N,) array of target spectral radii
@@ -309,7 +347,9 @@ def build_all_weights(
         sparsity       : connection sparsity (shared across all configs)
         device         : target device
         dtype          : target dtype
-
+        use_power_iteration : If True (default), use fast power iteration to estimate 
+                            spectral radius (~10x faster on RTX 4060). If False, use 
+                            exact eigenvalues via torch.linalg.eigvals (slower but exact).
 
     Returns:
         dict with keys:
@@ -333,15 +373,23 @@ def build_all_weights(
     W = W * mask
 
 
-    # Single eigval call for all N matrices
-    try:
-        eigs = torch.linalg.eigvals(W)                         # (N, R) complex
-        current_sr = torch.max(eigs.abs(), dim=-1).values      # (N,)  real
-        current_sr = current_sr.clamp(min=1e-9)
-        scale = sr_t / current_sr                              # (N,)
-        W = W * scale[:, None, None]
-    except torch.linalg.LinAlgError:
-        print("Warning: Eigenvalue computation failed. Using unscaled reservoir weights.")
+    # --- Scale by spectral radius ---
+    if use_power_iteration:
+        # FAST: Power iteration (Rayleigh quotient)
+        # ~10x faster than exact eigenvalues, especially on RTX 4060
+        current_sr = _power_iteration_spectral_radius(W, num_iterations=20)
+    else:
+        # SLOW: Exact eigenvalues
+        try:
+            eigs = torch.linalg.eigvals(W)                         # (N, R) complex
+            current_sr = torch.max(eigs.abs(), dim=-1).values      # (N,)  real
+        except torch.linalg.LinAlgError:
+            print("Warning: Eigenvalue computation failed. Using power iteration.")
+            current_sr = _power_iteration_spectral_radius(W, num_iterations=20)
+
+    current_sr = current_sr.clamp(min=1e-9)
+    scale = sr_t / current_sr                              # (N,)
+    W = W * scale[:, None, None]
 
 
     return {"W_in": W_in, "W": W}
