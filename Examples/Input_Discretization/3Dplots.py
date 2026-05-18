@@ -25,10 +25,10 @@ with open(file_path, "rb") as f:
 metrics_dict = {
     "KL Divergence": [chaos_utils.kl_divergence(r["true_value"], r["predictions"]) for r in results],
     "JS Divergence": [chaos_utils.js_divergence(r["true_value"], r["predictions"]) for r in results],
-    "RMSE": [np.sqrt(np.mean((r["true_value"] - r["predictions"]) ** 2)) for r in results]
+    "RMSE": [utils.RMSE(r["true_value"], r["predictions"]) for r in results]
 }
 
-viz.plot_multidimensional_3d(results, system_name, pp = 75, metrics_dict = metrics_dict).show()
+viz.plot_multidimensional_3d(results, "Lorenz", pp = 75, metrics_dict = metrics_dict).show()
 
 
     
