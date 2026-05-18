@@ -2,29 +2,25 @@ from timeit import default_timer as timer
 import gc
 import tracemalloc
 
-
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 
 import torch
 import numpy as np
 import pickle
 
-
 from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
-
-TARGET_PP = 100
+TARGET_PP = 50
 system_list = ["Rossler"]
 #system_list = ["Rossler", "Chua", "Chen","Thomas" ]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Hyperparameter Sweep Setup
 d = 3
-n = 1500
+n = 1
 
 sampler = qmc.LatinHypercube(d=d)
 sample_01 = sampler.random(n=n)
