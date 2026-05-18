@@ -200,6 +200,7 @@ def parameter_sweep(inputs, parameter_dict,
             input_scalings = ins_all,
             sparsity       = sparsity,
             device         = device,
+            use_power_iteration=True
         )
     # all_weights["W_in"]: (N, R, I) on GPU
     # all_weights["W"]   : (N, R, R) on GPU
