@@ -13,14 +13,13 @@ import pickle
 from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
-TARGET_PP = 50
-system_list = ["Rossler"]
-#system_list = ["Rossler", "Chua", "Chen","Thomas" ]
+TARGET_PP = "all"
+system_list = ["Rossler", "Chua", "Chen","Thomas" ]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Hyperparameter Sweep Setup
 d = 3
-n = 1
+n = 1000
 
 sampler = qmc.LatinHypercube(d=d)
 sample_01 = sampler.random(n=n)
