@@ -277,18 +277,22 @@ def visualize_reservoir_states(
     fig.show()
 
 
-def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html=False , show: bool = False) :
+def plot_multidimensional_3d(results, system_name, pp: int,  metrics_dict: dict , path: str = "" , save_html=False, show: bool = False  ):
     """
-    Plot 3D trajectories of the system at with different point per period and across different parameter values with interactive controls.
+    Plot 3D trajectories of the system with different points per period and across different parameter values with interactive controls.
     
     Args:
         results: List of result dictionaries containing:
             - 'true_value': numpy array of true values (must be 3D)
             - 'predictions': torch tensor of predictions (must be 3D)
             - 'parameters': dictionary of parameters
-            - 'metrics': dictionary containing 'RMSE'
         system_name: Name of the dynamical system
         save_html: Whether to save as interactive HTML file
+        show: Whether to display the plot immediately
+        metrics_dict: Standalone dictionary containing metrics and their values.
+                      Can be structured as:
+                      - {'RMSE': [0.1, 0.2], 'MAE': [0.01, 0.02]} OR
+                      - {0: {'RMSE': 0.1}, 1: {'RMSE': 0.2}}
     
     Returns:
         plotly.graph_objects.Figure: Interactive 3D figure with dropdown
@@ -299,7 +303,8 @@ def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html
     # Create visibility matrix and button definitions
     buttons = []
     visible_matrix = []
-    param_strings = []  # To store formatted parameter strings
+    param_strings = []   # To store formatted parameter strings
+    metric_strings = []  # To store formatted metric strings
     
     for i, result in enumerate(results):
         true_vals = result['true_value']
@@ -309,6 +314,32 @@ def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html
         # Verify data is 3D
         if true_vals.shape[1] != 3 or preds.shape[1] != 3:
             raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])")
+        
+        # 1. Parse out the metrics for the CURRENT run (index i) from your passed dictionary
+        current_run_metrics = {}
+        if metrics_dict:
+            # Check if index-based structure: {0: {'RMSE': 0.1}, 1: {'RMSE': 0.2}}
+            if i in metrics_dict and isinstance(metrics_dict[i], dict):
+                current_run_metrics = metrics_dict[i]
+            # Check if metric-based array structure: {'RMSE': [0.1, 0.2]}
+            else:
+                for metric_name, values in metrics_dict.items():
+                    if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i:
+                        current_run_metrics[metric_name] = values[i]
+                    elif isinstance(values, (int, float)): # Fallback for single-item runs
+                        current_run_metrics[metric_name] = values
+
+        # 2. Dynamically build the metric string (no hardcoded names!)
+        metric_items = []
+        for k, v in current_run_metrics.items():
+            if isinstance(v, (int, float)):
+                metric_items.append(f"{k}: {v:.3f}")
+            else:
+                metric_items.append(f"{k}: {v}")
+        
+        metric_str = ", ".join(metric_items)
+        metric_strings.append(metric_str)
+        metric_label_part = f" ({metric_str})" if metric_str else ""
         
         # Format parameters for display
         param_str = "<br>".join([f"{k}: {v}" for k, v in params.items()])
@@ -347,53 +378,26 @@ def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html
         
         # Create button for this parameter set
         buttons.append(dict(
-            label=f"Params {i+1} (RMSE: {result['metrics']['RMSE']:.3f})",
+            label=f"Params {i+1}{metric_label_part}",
             method="update",
             args=[{"visible": visible_matrix[i]},
                   {"title": {
-                      "text": f"{system_name} - Set {i+1} (RMSE: {result['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_str}</span>",
+                      "text": f"{system_name} - Set {i+1}{metric_label_part}<br><span style='font-size: 12px;'>{param_str}</span>",
                       "x": 0.5,
                       "xanchor": "center"
                   },
                   "scene": {  # Reset camera view when switching
                       "camera": {"eye": {"x": 1.5, "y": 1.5, "z": 0.5}},
-                      # Apply axis settings here
-                      "xaxis": dict(
-                          showline=True,
-                          linecolor="black",
-                          linewidth=5,
-                          showgrid=False,
-                          zeroline=False,
-                          showticklabels=False,
-                          ticks="",
-                          title=""
-                      ),
-                      "yaxis": dict(
-                          showline=True,
-                          linecolor="black",
-                          linewidth=5,
-                          showgrid=False,
-                          zeroline=False,
-                          showticklabels=False,
-                          ticks="",
-                          title=""
-                      ),
-                      "zaxis": dict(
-                          showline=True,
-                          linecolor="black",
-                          linewidth=5,
-                          showgrid=False,
-                          zeroline=False,
-                          showticklabels=False,
-                          ticks="",
-                          title=""
-                      )
+                      "xaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
+                      "yaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
+                      "zaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title="")
                   }}]
         ))
     
     # Initial title with first parameter set
+    initial_metric_part = f" ({metric_strings[0]})" if metric_strings and metric_strings[0] else ""
     initial_title = {
-        "text": f"{system_name} - Set 1 (RMSE: {results[0]['metrics']['RMSE']:.3f})<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
+        "text": f"{system_name} - Set 1{initial_metric_part}<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
         "x": 0.5,
         "xanchor": "center"
     }
@@ -411,48 +415,13 @@ def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html
             "yanchor": "top"
         }],
         scene=dict(
-            xaxis=dict(
-                showline=True,
-                linecolor="black",
-                linewidth=5,
-                showgrid=False,
-                zeroline=False,
-                showticklabels=False,
-                ticks="",
-                title=""
-            ),
-            yaxis=dict(
-                showline=True,
-                linecolor="black",
-                linewidth=5,
-                showgrid=False,
-                zeroline=False,
-                showticklabels=False,
-                ticks="",
-                title=""
-            ),
-            zaxis=dict(
-                showline=True,
-                linecolor="black",
-                linewidth=5,
-                showgrid=False,
-                zeroline=False,
-                showticklabels=False,
-                ticks="",
-                title=""
-            ),
+            xaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
+            yaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
+            zaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
             aspectmode='data',  # Preserve aspect ratio
-            camera=dict(
-                eye=dict(x=1.5, y=1.5, z=0.5)  # Initial camera position
-            )
+            camera=dict(eye=dict(x=1.5, y=1.5, z=0.5))
         ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         template="plotly_white",
         margin=dict(t=120)
     )
@@ -462,6 +431,9 @@ def plot_multidimensional_3d(results, system_name, pp: int, path: str, save_html
         print(f"saved File at {path}{system_name}/{pp}.html")
     if show:
         fig.show()
+
+    return fig
+
 
 import pickle
 import pandas as pd
