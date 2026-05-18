@@ -12,6 +12,10 @@ import pandas as pd
 from matplotlib.colors import LogNorm, Normalize
 from tqdm import tqdm
 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 # Configure professional logging pipeline
 logging.basicConfig(
     level=logging.INFO,
@@ -19,6 +23,18 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
+
+
+def make_param_combo(x: Any) -> Optional[tuple]:
+    """
+    Safely converts a parameter dictionary into a hashable tuple.
+    Returns None if the params cannot be converted (e.g. unhashable values).
+    """
+    try:
+        return tuple(sorted(x.items()))
+    except (AttributeError, TypeError) as e:
+        logger.warning(f"Could not hash params: {x} — {e}")
+        return None
 
 
 def extract_metrics_from_folder(folder_path: Path) -> pd.DataFrame:
@@ -36,6 +52,7 @@ def extract_metrics_from_folder(folder_path: Path) -> pd.DataFrame:
     # Deferred import to isolate external framework dependency
     try:
         from reservoirgrid.helpers import chaos_utils
+        from reservoirgrid.helpers import utils
     except ImportError as e:
         logger.error("Failed to import 'reservoirgrid'. Ensure it is accessible in the sys.path.")
         raise e
@@ -66,16 +83,23 @@ def extract_metrics_from_folder(folder_path: Path) -> pd.DataFrame:
                 params = entry["parameters"]
                 true_val = entry["true_value"]
                 preds = entry["predictions"]
-                rmse = np.sqrt(np.mean((true_val - preds) ** 2))
-                
+                rmse = utils.RMSE(true_val, preds)
+
                 # Execute evaluation suite
                 lyap_time = chaos_utils.lyapunov_time(truth=true_val, predictions=preds)
                 kldiv = chaos_utils.kl_divergence(true_val, preds, bins=100)
                 psd, cos_sim = chaos_utils.psd_metrics(true_val, preds)
 
+                # FIX 1: Use safe param combo converter
+                param_combo = make_param_combo(params)
+                if param_combo is None:
+                    logger.warning(f"Skipping entry in {file_path.name}: params could not be hashed.")
+                    continue
+
                 all_data.append({
                     "ppp": ppp,
                     "params": params,
+                    "param_combo": param_combo,
                     "LyapunovTime": lyap_time,
                     "KLDivergence": kldiv,
                     "PSD Errors": psd,
@@ -85,7 +109,7 @@ def extract_metrics_from_folder(folder_path: Path) -> pd.DataFrame:
             except KeyError as ke:
                 logger.warning(f"Malformed schema entry skipped in {file_path.name}: Missing key {str(ke)}")
                 continue
-        
+
         del data
         gc.collect()
 
@@ -93,8 +117,6 @@ def extract_metrics_from_folder(folder_path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(all_data)
-    # Generate an immutable, hashable identifier for unique hyperparameter states
-    df["param_combo"] = df["params"].apply(lambda x: tuple(sorted(x.items())))
     return df
 
 
@@ -109,29 +131,50 @@ def plot_and_save_heatmap(df: pd.DataFrame, metric: str, folder_name: str, outpu
         folder_name (str): Context identifier used for directory segmentation.
         output_base_dir (Path): Base directory path for visualization export.
     """
+    # FIX 2: Aggregate duplicate (ppp, param_combo) pairs before pivoting
+    # Multiple entries sharing the same ppp + param_combo are averaged.
+    df_agg = (
+        df.groupby(["ppp", "param_combo"], as_index=False)[metric]
+        .mean()
+    )
+
     # Reshape long-form layout into a highly optimized 2D grid matrix
-    pivot_df = df.pivot(index="ppp", columns="param_combo", values=metric)
+    pivot_df = df_agg.pivot(index="ppp", columns="param_combo", values=metric)
     pivot_df = pivot_df.sort_index(ascending=True)
     pivot_df = pivot_df.reindex(columns=sorted(pivot_df.columns))
 
     heatmap_matrix = pivot_df.to_numpy()
-    
+
     # Extract structural components for ticks
     ppp_values = pivot_df.index.to_numpy()
     num_combos = heatmap_matrix.shape[1]
 
-    # Select mathematical color norm strategy dynamically
+    # FIX 3: Guard LogNorm against matrices with no positive values
     if metric in ["PSD Errors", "RMSE"]:
-        norm = LogNorm(vmin=np.nanmin(heatmap_matrix[heatmap_matrix > 0]), vmax=np.nanmax(heatmap_matrix))
+        positive_vals = heatmap_matrix[heatmap_matrix > 0]
+        if positive_vals.size == 0:
+            logger.warning(
+                f"No positive values found for LogNorm on metric '{metric}'. "
+                f"Falling back to linear normalization."
+            )
+            norm = Normalize(vmin=np.nanmin(heatmap_matrix), vmax=np.nanmax(heatmap_matrix))
+        else:
+            norm = LogNorm(vmin=np.nanmin(positive_vals), vmax=np.nanmax(heatmap_matrix))
     elif metric == "Cos_Sim":
         norm = Normalize(vmin=-1.0, vmax=1.0)
     else:
         norm = Normalize(vmin=np.nanmin(heatmap_matrix), vmax=np.nanmax(heatmap_matrix))
 
+    # FIX 4: Graceful style fallback — avoids reverting to ugly "default"
+    preferred_styles = ["seaborn-v0_8-whitegrid", "seaborn-whitegrid", "ggplot"]
+    for style in preferred_styles:
+        if style in plt.style.available:
+            plt.style.use(style)
+            break
+
     # Object-Oriented Canvas Configuration
-    plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
     fig, ax = plt.subplots(figsize=(16, 7), layout="tight")
-    
+
     cax = ax.imshow(
         heatmap_matrix,
         cmap="inferno",  # High perceptual uniformity for complex numerical spaces
@@ -155,7 +198,7 @@ def plot_and_save_heatmap(df: pd.DataFrame, metric: str, folder_name: str, outpu
     ax.set_yticklabels([f"{ppp_values[i]:.2f}" for i in yticks], fontsize=10, color="#2c3e50")
     ax.set_ylabel("Points per Period (PPP)", fontsize=12, fontweight="bold", labelpad=12)
 
-    # Colorbar Styling 
+    # Colorbar Styling
     cbar_formatter = ticker.LogFormatterMathtext() if isinstance(norm, LogNorm) else ticker.ScalarFormatter()
     cbar = fig.colorbar(cax, ax=ax, pad=0.02, fraction=0.046, format=cbar_formatter)
     cbar.set_label(label=f"Measured: {metric}", fontsize=11, fontweight="bold", labelpad=10)
@@ -163,16 +206,21 @@ def plot_and_save_heatmap(df: pd.DataFrame, metric: str, folder_name: str, outpu
 
     # Master Frame Detailing
     ax.set_title(f"Evaluation Landscape: {metric} ({folder_name})", fontsize=14, fontweight="bold", pad=16, color="#1a252f")
-    ax.spines[:].set_color("#bdc3c7")
+
+    # FIX 5: Use .values() for matplotlib < 3.6 spine compatibility
+    for spine in ax.spines.values():
+        spine.set_color("#bdc3c7")
+
     ax.grid(False)  # Remove overlay gridlines that obscure matrix pixels
 
     # Safe I/O Execution
     save_dir = output_base_dir / folder_name
     save_dir.mkdir(parents=True, exist_ok=True)
     output_file = save_dir / f"{metric.lower().replace(' ', '_')}.png"
-    
+
     fig.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close(fig)
+    logger.info(f"Saved heatmap to: {output_file}")
 
 
 def process_single_location(target_pkl_dir: str, output_base_dir: str = "Examples/Input_Discretization/Plots/HeatMaps/") -> None:
@@ -216,5 +264,4 @@ if __name__ == "__main__":
         process_single_location(sys.argv[1])
     else:
         logger.info("Direct execution trace missing target path parameter. Defaulting execution context example.")
-        # Command-line alternative fallback placeholder:
         process_single_location("Examples/Input_Discretization/results/Chaotic/LorenzLHS")
