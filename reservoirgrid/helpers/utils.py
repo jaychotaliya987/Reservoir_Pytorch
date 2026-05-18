@@ -98,6 +98,9 @@ def split(dataset: np.ndarray, window: int = 1, **kwargs):
 
 def RMSE(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Root Mean Square Error between true and predicted values."""
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.detach().cpu().numpy()
+
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
@@ -269,7 +272,7 @@ def parameter_sweep(inputs, parameter_dict,
                             'LeakyRate':      lr_all[param_idx],
                             'InputScaling':   ins_all[param_idx],
                         },
-                        'predictions':    batch_predictions[:, config_idx, :].cpu().numpy(),
+                        'predictions':    batch_predictions[:, config_idx, :].detach().cpu().numpy(),
                         'readout_weights': batch_model.W_out[config_idx].detach().cpu().numpy(),
                     }
 
