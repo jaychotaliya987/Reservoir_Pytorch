@@ -17,8 +17,9 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 
-TARGET_PP = [95, 100]
-system_list = ["Lorenz"]
+TARGET_PP = 100
+system_list = ["Rossler"]
+#system_list = ["Rossler", "Chua", "Chen","Thomas" ]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Hyperparameter Sweep Setup
@@ -59,7 +60,7 @@ for system in system_list:
     
     selected_indices = []
     for i in range(len(T_system['pp'])):
-        if T_system[i][0] in TARGET_PP:
+        if T_system[i][0] == TARGET_PP:
             selected_indices.append(i)
         elif TARGET_PP == 'all':
             selected_indices.append(i)
@@ -88,7 +89,7 @@ for system in system_list:
         print(f"Input/Output dim: {r_dim}")
         
         # IMPROVED: Call batched parameter_sweep with batch_size tuned to GPU
-        results = utils.parameter_sweep_DIAGNOSTIC(
+        results = utils.parameter_sweep(
             inputs=input_data,
             parameter_dict=parameter_dict,
             reservoir_dim=1300,
@@ -96,7 +97,7 @@ for system in system_list:
             output_dim=r_dim,
             sparsity=0.9,
             return_targets=True,
-            batch_size=64  # OPTIMIZED: Process 64 configs per batch
+            batch_size=80  # OPTIMIZED: Process 64 configs per batch
         )
 
         # Save results
