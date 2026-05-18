@@ -92,7 +92,7 @@ for system in system_list:
             output_dim=r_dim,
             sparsity=0.9,
             return_targets=True,
-            batch_size=80  # OPTIMIZED: Process 64 configs per batch
+            batch_size=80 
         )
 
         # Save results
