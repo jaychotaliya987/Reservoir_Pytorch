@@ -3,6 +3,7 @@ from matplotlib.colors import to_hex
 import matplotlib.cm as cm
 import torch
 from typing import Union
+import os
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -276,164 +277,186 @@ def visualize_reservoir_states(
     
     fig.show()
 
-
-def plot_multidimensional_3d(results, system_name, pp: int,  metrics_dict: dict , path: str = "" , save_html=False, show: bool = False  ):
-    """
-    Plot 3D trajectories of the system with different points per period and across different parameter values with interactive controls.
-    
-    Args:
-        results: List of result dictionaries containing:
-            - 'true_value': numpy array of true values (must be 3D)
-            - 'predictions': torch tensor of predictions (must be 3D)
-            - 'parameters': dictionary of parameters
-        system_name: Name of the dynamical system
-        save_html: Whether to save as interactive HTML file
-        show: Whether to display the plot immediately
-        metrics_dict: Standalone dictionary containing metrics and their values.
-                      Can be structured as:
-                      - {'RMSE': [0.1, 0.2], 'MAE': [0.01, 0.02]} OR
-                      - {0: {'RMSE': 0.1}, 1: {'RMSE': 0.2}}
-    
-    Returns:
-        plotly.graph_objects.Figure: Interactive 3D figure with dropdown
-    """
-    # Create figure
+def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False):
     fig = go.Figure()
-    
-    # Create visibility matrix and button definitions
-    buttons = []
-    visible_matrix = []
-    param_strings = []   # To store formatted parameter strings
-    metric_strings = []  # To store formatted metric strings
-    
+
+    axis_config = dict(
+        showline=True,
+        linecolor="#1A202C",
+        linewidth=3,
+        showgrid=True,
+        gridcolor="#E2E8F0",
+        gridwidth=1,
+        zeroline=False,
+        showticklabels=False,
+        ticks="",
+        title=""
+    )
+
+    param_strings = []
+    metric_strings = []
+
+    # --- PASS 1: Add all traces ---
     for i, result in enumerate(results):
         true_vals = result['true_value']
         preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions']
         params = result['parameters']
-        
-        # Verify data is 3D
+
         if true_vals.shape[1] != 3 or preds.shape[1] != 3:
             raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])")
-        
-        # 1. Parse out the metrics for the CURRENT run (index i) from your passed dictionary
+
         current_run_metrics = {}
         if metrics_dict:
-            # Check if index-based structure: {0: {'RMSE': 0.1}, 1: {'RMSE': 0.2}}
             if i in metrics_dict and isinstance(metrics_dict[i], dict):
                 current_run_metrics = metrics_dict[i]
-            # Check if metric-based array structure: {'RMSE': [0.1, 0.2]}
             else:
                 for metric_name, values in metrics_dict.items():
                     if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i:
                         current_run_metrics[metric_name] = values[i]
-                    elif isinstance(values, (int, float)): # Fallback for single-item runs
+                    elif isinstance(values, (int, float)):
                         current_run_metrics[metric_name] = values
 
-        # 2. Dynamically build the metric string (no hardcoded names!)
-        metric_items = []
-        for k, v in current_run_metrics.items():
-            if isinstance(v, (int, float)):
-                metric_items.append(f"{k}: {v:.3f}")
-            else:
-                metric_items.append(f"{k}: {v}")
-        
-        metric_str = ", ".join(metric_items)
-        metric_strings.append(metric_str)
-        metric_label_part = f" ({metric_str})" if metric_str else ""
-        
-        # Format parameters for display
-        param_str = "<br>".join([f"{k}: {v}" for k, v in params.items()])
+        metric_items = [
+            f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}"
+            for k, v in current_run_metrics.items()
+        ]
+        metric_strings.append(" | ".join(metric_items))
+
+        param_str = "  \u00b7  ".join([f"<b>{k}</b>: {v}" for k, v in params.items()])
         param_strings.append(param_str)
-        
-        # Create visibility array for this parameter set
-        visible = [False] * (len(results) * 2)  # (true + pred) * results
-        
-        # True values trace
+
         fig.add_trace(go.Scatter3d(
-            x=true_vals[:, 0],
-            y=true_vals[:, 1],
-            z=true_vals[:, 2],
-            name=f'True Trajectory {i+1}',
-            marker=dict(size=2),
-            line=dict(color='grey', width=6),
-            visible=(i==0)  # Only show first set by default
+            x=true_vals[:, 0], y=true_vals[:, 1], z=true_vals[:, 2],
+            name='True Trajectory',
+            mode='lines',
+            line=dict(color='#4A5568', width=4),
+            visible=(i == 0)
         ))
-        
-        # Predictions trace
         fig.add_trace(go.Scatter3d(
-            x=preds[:, 0],
-            y=preds[:, 1],
-            z=preds[:, 2],
-            name=f'Predicted Trajectory {i+1}',
-            marker=dict(size=2),
-            line=dict(color='darkorange', width=7),
-            visible=(i==0)
+            x=preds[:, 0], y=preds[:, 1], z=preds[:, 2],
+            name='Predicted Trajectory',
+            mode='lines',
+            line=dict(color='#FF6B6B', width=5.5),
+            visible=(i == 0)
         ))
-        
-        # Set visibility for this parameter set
-        visible[i*2] = True    # True values
-        visible[i*2+1] = True  # Predictions
-        
-        visible_matrix.append(visible)
-        
-        # Create button for this parameter set
+
+    # --- PASS 2: Build buttons ---
+    n = len(results)
+    buttons = []
+
+    for i in range(n):
+        visible = [False] * (n * 2)
+        visible[i * 2] = True
+        visible[i * 2 + 1] = True
+
+        metric_label_part = f" ({metric_strings[i]})" if metric_strings[i] else ""
+
         buttons.append(dict(
-            label=f"Params {i+1}{metric_label_part}",
+            label=f"Set {i+1}{metric_label_part}",
             method="update",
-            args=[{"visible": visible_matrix[i]},
-                  {"title": {
-                      "text": f"{system_name} - Set {i+1}{metric_label_part}<br><span style='font-size: 12px;'>{param_str}</span>",
-                      "x": 0.5,
-                      "xanchor": "center"
-                  },
-                  "scene": {  # Reset camera view when switching
-                      "camera": {"eye": {"x": 1.5, "y": 1.5, "z": 0.5}},
-                      "xaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
-                      "yaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
-                      "zaxis": dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title="")
-                  }}]
+            args=[
+                {"visible": visible},
+                {
+                    # Title stays clean — system name only
+                    "title.text": f"<b>{system_name}</b>",
+
+                    # Annotation updates to show the selected set's params
+                    "annotations[0].text": (
+                        f"<span style='color:#718096; font-size:11px;'>{param_strings[i]}</span>"
+                    ),
+
+                    "scene.camera": {"eye": {"x": 1.4, "y": 1.4, "z": 0.8}},
+                    "scene.xaxis": axis_config,
+                    "scene.yaxis": axis_config,
+                    "scene.zaxis": axis_config,
+                    "scene.aspectmode": "data",
+                }
+            ]
         ))
-    
-    # Initial title with first parameter set
-    initial_metric_part = f" ({metric_strings[0]})" if metric_strings and metric_strings[0] else ""
-    initial_title = {
-        "text": f"{system_name} - Set 1{initial_metric_part}<br><span style='font-size: 12px;'>{param_strings[0]}</span>",
-        "x": 0.5,
-        "xanchor": "center"
-    }
-    
-    # Update layout with dropdown menu
+
     fig.update_layout(
-        title=initial_title,
+        # Clean title — system name only
+        title=dict(
+            text=f"<b>{system_name}</b>",
+            x=0.02,
+            xanchor="left",
+            y=0.98,
+            yanchor="top",
+            font=dict(size=16, color="#2D3748")
+        ),
+
+        # Param text as annotation sitting just below the title
+        annotations=[dict(
+            text=(
+                f"<span style='color:#718096; font-size:11px;'>{param_strings[0]}</span>"
+            ),
+            x=0.02,
+            y=1.1,             # just below title
+            xref="paper",
+            yref="paper",
+            xanchor="left",
+            yanchor="top",
+            showarrow=False,
+            align="left",
+        )],
+
+        font=dict(family="Inter, BlinkMacSystemFont, Segoe UI, sans-serif", size=12, color="#2D3748"),
+
         updatemenus=[{
             "buttons": buttons,
             "direction": "down",
             "showactive": True,
-            "x": 0.1,
-            "y": 1.2,
+            "active": 0,
+            # Right side, vertically aligned with the param text row
+            "x": 0.02,
+            "y": 1.05,          # same vertical band as the annotation
             "xanchor": "left",
-            "yanchor": "top"
+            "yanchor": "top",
+            "bgcolor": "#FFFFFF",
+            "bordercolor": "#CBD5E0",
+            "borderwidth": 1,
+            "pad": {"r": 8, "t": 6},
+            "font": dict(size=11)
         }],
+
         scene=dict(
-            xaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
-            yaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
-            zaxis=dict(showline=True, linecolor="black", linewidth=5, showgrid=False, zeroline=False, showticklabels=False, ticks="", title=""),
-            aspectmode='data',  # Preserve aspect ratio
-            camera=dict(eye=dict(x=1.5, y=1.5, z=0.5))
+            xaxis=axis_config,
+            yaxis=axis_config,
+            zaxis=axis_config,
+            aspectmode='data',
+            camera=dict(
+                eye=dict(x=1.25, y=1.25, z=0.6),   
+                up=dict(x=0, y=0, z=1),
+                center=dict(x=0, y=0, z=-0.1)      
+                )
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1,
+            xanchor="right",
+            x=0.99,
+            font=dict(size=11),
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="#CBD5E0",
+            borderwidth=1,
+        ),
         template="plotly_white",
-        margin=dict(t=120)
+        margin=dict(t=110, b=40, l=30, r=30),
+        height=750
     )
 
     if save_html:
-        fig.write_html(f"{path}{system_name}/{pp}.html")
-        print(f"saved File at {path}{system_name}/{pp}.html")
+        full_path = os.path.join(path, system_name)
+        os.makedirs(full_path, exist_ok=True)
+        file_loc = os.path.join(full_path, f"{pp}.html")
+        fig.write_html(file_loc)
+        print(f"Saved layout successfully at {file_loc}")
+
     if show:
         fig.show()
 
     return fig
-
 
 import pickle
 import pandas as pd
