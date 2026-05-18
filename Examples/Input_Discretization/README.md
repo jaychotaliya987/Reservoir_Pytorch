@@ -30,7 +30,17 @@
 
 * For stiff systems, however, this advantage diminishes or vanishes. `RK45` may suffer from frequent **step rejections** due to error control, making it less efficient. (This is a logical expectation; further empirical testing is needed.)
 
-* The parameter_sweep is as optimized I can get it in this iteration. The GPU utilization saturates when the loop is calculating the  per batch and then takes a almost equivalent time to compute and allocating the next batch data. It is still efficient but I will improve it further in future.
+* The parameter_sweep is as optimized I can get it in this iteration. The GPU utilization saturates when the loop is calculating the  per batch and then takes a almost equivalent time to compute and allocating the next batch data. It was not very efficient because the main training part is the only one which is GPU bound. The weight allocation and tensor initialization takes a lot of time. and that happened each batch. But now with the method `build_all_weight()` the speed of each batch calculation increases significantly. But you are now GPU memory bound. Before there was no bound on maximum combination of the hyperparameter. After on 8gb card the maximum you can calculate is 1000 to 1300 combination. Which is still fine.
+* As for the speed increase, the allocation takes 38.92 sec for 100 weights. but with the approximation of the eigen_values we can improve the allocation to 0.2 sec for 100 weights.
+##### Performance Breakdown by Component
+
+| Phase | Serial | Batching | Batching + PI | Speedup |
+|-------|--------|----------|---------------|---------|
+| **Model Init** | 0.26s/config | 0.475s/config | 0.007s/config | **37x** |
+| **Training** | 1.88s/config | 0.245s/config | 0.178s/config | **10.6x** |
+| **Prediction** | 2.45s/config | 0.304s/config | 0.152s/config | **16x** |
+| **Weight Gen (N=1000-1500)** | N/A | 180-300s | 21s | **9-14x** |
+| **Total (1000 configs)** | ~77 min | ~32 min | **~6.5 min** | **11.8x** |
 
 ## Core Idea
 
