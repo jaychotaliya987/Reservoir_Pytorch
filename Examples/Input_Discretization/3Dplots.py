@@ -11,7 +11,7 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
 path = "Examples\\Input_Discretization\\results\\Chaotic\\"
-system_name = "LorenzLHS"
+system_name = "RosslerLHS"
 system_path = path + system_name
 
 if not os.path.exists("Examples/Input_Discretization/Plots/3DPlots/" + system_name):
@@ -28,7 +28,7 @@ metrics_dict = {
     "RMSE": [utils.RMSE(r["true_value"], r["predictions"]) for r in results]
 }
 
-viz.plot_multidimensional_3d(results, "Lorenz", pp = 75, metrics_dict = metrics_dict).show()
+viz.plot_multidimensional_3d(results, "Rossler-LHS", pp = 75, metrics_dict = metrics_dict, save_html=False, path="Examples/Input_Discretization/Plots/3DPlots/" + system_name + "/").show()
 
 
     
