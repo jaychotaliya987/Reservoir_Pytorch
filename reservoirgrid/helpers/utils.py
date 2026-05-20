@@ -193,6 +193,7 @@ def parameter_sweep(inputs, parameter_dict,
     input_dim    = kwargs.get('input_dim',    inputs.shape[1])
     reservoir_dim = kwargs.get('reservoir_dim', 1000)
     sparsity     = kwargs.get('sparsity',     0.9)
+    Iteration_approximation = kwargs.get('use_power_iteration', False)
 
     with timer(f"Building all weights ({total_combinations} configs)"):
         all_weights = build_all_weights(
@@ -203,7 +204,7 @@ def parameter_sweep(inputs, parameter_dict,
             input_scalings = ins_all,
             sparsity       = sparsity,
             device         = device,
-            use_power_iteration=True
+            use_power_iteration=Iteration_approximation
         )
     # all_weights["W_in"]: (N, R, I) on GPU
     # all_weights["W"]   : (N, R, R) on GPU
@@ -380,7 +381,7 @@ def build_all_weights(
     # --- Scale by spectral radius ---
     if use_power_iteration:
         # FAST: Power iteration (Rayleigh quotient)
-        # ~10x faster than exact eigenvalues, especially on RTX 4060
+        # ~10x faster than exact eigenvalues.
         current_sr = _power_iteration_spectral_radius(W, num_iterations=20)
     else:
         # SLOW: Exact eigenvalues
