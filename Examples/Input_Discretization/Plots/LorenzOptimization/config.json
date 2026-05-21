@@ -1,0 +1,16 @@
+{
+  "exp": "rc_lorenz_search",
+  "hp_max_evals": 60,
+  "hp_method": "random",
+  "seed": 42,
+  "instances_per_trial": 3,
+  "hp_space": {
+    "N":                 ["choice", 1000, 1500, 2000, 3000],
+    "sr":                ["uniform", 0.7, 1.4],
+    "lr":                ["uniform", 0.1, 1.0],
+    "input_scaling":     ["loguniform", 0.1, 5.0],
+    "ridge":             ["loguniform", 1e-9, 1e-4],
+    "input_connectivity":["uniform", 0.05, 0.3],
+    "rc_connectivity":   ["uniform", 0.05, 0.2]
+  }
+}
