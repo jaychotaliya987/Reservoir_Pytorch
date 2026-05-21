@@ -165,6 +165,9 @@ def parameter_sweep(inputs, parameter_dict,
         **kwargs       : passed to Reservoir (reservoir_dim, input_dim, output_dim, sparsity, ...)
     """
 
+    from time import time
+    import gc
+
     # --- 1. Data Preparation (once) ---
     with timer("Data preparation"):
         train_inputs, test_inputs, train_targets, test_targets = split(inputs, random_state=42)
@@ -178,7 +181,7 @@ def parameter_sweep(inputs, parameter_dict,
     test_inputs   = test_inputs.to(device, non_blocking=True)
     train_targets = train_targets.to(device, non_blocking=True)
 
-    # --- 2. Extract parameter arrays (direct numpy slices, no Python loops) ---
+    # --- 2. Extract parameter arrays ---
     sr_all  = parameter_dict["SpectralRadius"]   # (N,) numpy array
     lr_all  = parameter_dict["LeakyRate"]        # (N,) numpy array
     ins_all = parameter_dict["InputScaling"]     # (N,) numpy array
@@ -187,31 +190,15 @@ def parameter_sweep(inputs, parameter_dict,
     print(f"Total parameter combinations: {total_combinations}")
     print(f"Device: {device}\n")
 
-    # --- 3. Build ALL weight matrices once before the loop ---
-    # This is the expensive step (rand + eigvals for all N configs).
-    # Done here once instead of once per batch.
-    input_dim    = kwargs.get('input_dim',    inputs.shape[1])
+    # Gather architectural settings from kwargs
+    input_dim     = kwargs.get('input_dim',     inputs.shape[1])
     reservoir_dim = kwargs.get('reservoir_dim', 1000)
-    sparsity     = kwargs.get('sparsity',     0.9)
+    sparsity      = kwargs.get('sparsity',      0.9)
     Iteration_approximation = kwargs.get('use_power_iteration', False)
-
-    with timer(f"Building all weights ({total_combinations} configs)"):
-        all_weights = build_all_weights(
-            N              = total_combinations,
-            input_dim      = input_dim,
-            reservoir_dim  = reservoir_dim,
-            spectral_radii = sr_all,
-            input_scalings = ins_all,
-            sparsity       = sparsity,
-            device         = device,
-            use_power_iteration=Iteration_approximation
-        )
-    # all_weights["W_in"]: (N, R, I) on GPU
-    # all_weights["W"]   : (N, R, R) on GPU
 
     results = []
 
-    # --- 4. Batch loop — only train_readout + predict per batch ---
+    # --- 3. Batch loop — weights built and evaluated per batch ---
     for batch_start in range(0, total_combinations, batch_size):
         batch_end         = min(batch_start + batch_size, total_combinations)
         actual_batch_size = batch_end - batch_start
@@ -224,18 +211,25 @@ def parameter_sweep(inputs, parameter_dict,
         batch_iter_start = time()
 
         try:
-            # Slice prebuilt weights for this batch — just indexing, no computation
-            batch_weights = {
-                "W_in": all_weights["W_in"][batch_start:batch_end],   # (B, R, I)
-                "W":    all_weights["W"][batch_start:batch_end],       # (B, R, R)
-            }
-
-            # Slice hyperparameter arrays for this batch
-            lr_batch  = lr_all[batch_start:batch_end]    # (B,) numpy slice
+            # Slice hyperparameter arrays for this specific batch
+            lr_batch  = lr_all[batch_start:batch_end]    
             sr_batch  = sr_all[batch_start:batch_end]
             ins_batch = ins_all[batch_start:batch_end]
 
-            # Init model — skips eigval computation because prebuilt_weights provided
+            # NEW: Build ONLY the weights needed for this specific batch block
+            with timer(f"Building batch weights ({actual_batch_size} configs)"):
+                batch_weights = build_all_weights(
+                    N                  = actual_batch_size, 
+                    input_dim          = input_dim,
+                    reservoir_dim      = reservoir_dim,
+                    spectral_radii     = sr_batch,          # Sliced arrays passed here
+                    input_scalings     = ins_batch,         # Sliced arrays passed here
+                    sparsity           = sparsity,
+                    device             = device,
+                    use_power_iteration = Iteration_approximation
+                )
+
+            # Init model — skips full weight setup because prebuilt_weights are provided
             with timer(f"Batch init ({actual_batch_size} configs)"):
                 batch_model = Reservoir(
                     spectral_radius  = sr_batch,
@@ -296,12 +290,14 @@ def parameter_sweep(inputs, parameter_dict,
             import traceback
             print(f"Error in batch {batch_start // batch_size + 1}: {str(e)}")
             traceback.print_exc()
-            raise   # re-raise so the real error is visible
+            raise   
 
         finally:
+            # Aggressive, deterministic isolation and cleanup of local loop allocations
             if 'batch_model' in locals():
                 del batch_model  # type: ignore
-            torch.cuda.empty_cache()
+            if 'batch_weights' in locals():
+                del batch_weights # type: ignore
 
     print(f"\n{'='*60}")
     print(f"Total combinations processed: {len(results)}/{total_combinations}")
@@ -324,7 +320,6 @@ def truncate(system):
     return system
 
 
-
 def build_all_weights(
     N: int,
     input_dim: int,
@@ -334,7 +329,7 @@ def build_all_weights(
     sparsity: float = 0.9,
     device: Optional[Union[str, torch.device]] = None,
     dtype: torch.dtype = torch.float32,
-    use_power_iteration: bool = True
+    use_power_iteration: bool = False
 ) -> Dict[str, torch.Tensor]:
     """
     Build ALL reservoir weight matrices for N configs in a single pass.
@@ -399,9 +394,6 @@ def build_all_weights(
 
     return {"W_in": W_in, "W": W}
 
-
-
-
 #------------------ Deprecated and Testing ---------------------#
 
 
@@ -433,7 +425,6 @@ def parameter_sweep_serial(inputs, parameter_dict,
     for i, (sr, lr, ins) in enumerate(param_combinations, 1):
         iter_start = time()
         print(f"\nCombination {i}/{total_combinations} - SR: {sr:.4f}, LR: {lr:.4f}, IS: {ins:.4f}")
-
         try:
             with timer("Model init"):
                 model = Reservoir(
@@ -474,6 +465,8 @@ def parameter_sweep_serial(inputs, parameter_dict,
                     )
 
             results.append(result)
+            combination_time = time() - iter_start
+            print(f"Time for combination {i}: {combination_time:.2f}s")
 
         except Exception as e:
             print(f"Failed on combination {i}: {str(e)}")

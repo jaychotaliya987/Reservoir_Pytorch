@@ -82,22 +82,17 @@ def _compute_histogram(X, bins, ranges):
     H, _ = np.histogramdd(X, bins=bins, range=ranges, density=True)
     return H.flatten() + EPSILON
 
-def kl_divergence(
-    truth: np.ndarray, 
-    predictions: np.ndarray, 
-    bins: int = 20
-) -> float:
-    
-    """KL divergence calculation."""
-
+def kl_divergence(truth, predictions, bins=20) -> float:
     all_data = np.vstack([truth, predictions])
     ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
+
+    # Both histograms share the same bin edges — compute edges once
+    edges = np.array([np.linspace(r[0], r[1], bins + 1) for r in ranges])
     
-    P = _compute_histogram(truth, bins, ranges)
-    Q = _compute_histogram(predictions, bins, ranges)
+    P = _compute_histogram(truth, [edges[i] for i in range(len(edges))], ranges)
+    Q = _compute_histogram(predictions, [edges[i] for i in range(len(edges))], ranges)
 
     return float(entropy(P, Q))
-
 
 def js_divergence(truth: np.ndarray, 
                   predictions: np.ndarray, 
@@ -114,7 +109,6 @@ def js_divergence(truth: np.ndarray,
 
     M = 0.5 * (P + Q)
     return float(0.5 * entropy(P, M) + 0.5 * entropy(Q, M))
-
 
 def symmetric_kl(truth: np.ndarray, 
                  predictions: np.ndarray, 
@@ -136,6 +130,7 @@ def correlation_dimension(
     batch_size: Optional[int] = None
 ) -> np.ndarray:
     """Memory-efficient correlation dimension."""
+    
     N = len(data)
     if batch_size and N > batch_size:
         # Batch processing for large data
@@ -169,3 +164,43 @@ def psd_metrics(
     cos_sim = cosine_similarity(P_true.reshape(1, -1), P_pred.reshape(1, -1))[0, 0]
     
     return float(psd_error), cos_sim
+
+def trajectory_vitality(
+    true_val: np.ndarray, 
+    preds: np.ndarray, 
+    tail_pct: float = 0.5, 
+    collapse_threshold: float = 0.05
+) -> dict:
+    """
+    Quantifies if a reservoir trajectory has experienced 'dying dynamics'
+    by evaluating the variance of the latter half of the prediction.
+    
+    Args:
+        true_val (np.ndarray): True Lorenz trajectory, shape (N, 3) or (N,)
+        preds (np.ndarray): Reservoir predictions, shape (N, 3) or (N,)
+        tail_pct (float): Percent of the trajectory from the end to analyze.
+        collapse_threshold (float): Ratio of variance below which a model is 'dead'.
+    """
+    n_steps = len(preds)
+    start_idx = int(n_steps * (1.0 - tail_pct))
+    
+    # Isolate the tail ends
+    true_tail = true_val[start_idx:]
+    preds_tail = preds[start_idx:]
+    
+    # Calculate variance across all spatial dimensions
+    true_var = np.var(true_tail, axis=0)
+    preds_var = np.var(preds_tail, axis=0)
+    
+    # Handle multi-dimensional average variance ratio
+    # (Avoid division by zero if true system is static, which it isn't for Lorenz)
+    var_ratio = np.mean(preds_var / (true_var + 1e-9))
+    
+    # A trajectory is classified as 'dying' if it loses 95%+ of its variance
+    is_dying = var_ratio < collapse_threshold
+    
+    return {
+        "is_dying": bool(is_dying),
+        "variance_ratio": float(var_ratio),
+        "terminal_std": float(np.mean(np.std(preds_tail, axis=0)))
+    }
