@@ -66,7 +66,7 @@ def _compute_entry_metrics(entry: dict, ppp: float, selection: int) -> Optional[
     try:
         lyap         = chaos_utils.lyapunov_time(truth=true_val, predictions=preds)
         skl           = chaos_utils.symmetric_kl(true_val, preds, bins=20)  # bins=100 → 20: 125× less work in histogramdd
-        psd, cos_sim = chaos_utils.psd_metrics(true_val, preds)
+        psd, cos_sim = chaos_utils.psd_error(true_val, preds)
         rmse         = utils.RMSE(true_val, preds)
         jsdiv        = chaos_utils.js_divergence(true_val, preds, bins=20)
     except Exception as e:
