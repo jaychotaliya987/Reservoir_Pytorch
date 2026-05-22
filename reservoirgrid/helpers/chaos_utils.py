@@ -147,7 +147,7 @@ def correlation_dimension(
         dists = pdist(data)
         return np.array([np.sum(dists < r) * 2 / (N * (N - 1)) for r in r_vals])
 
-def psd_metrics(
+def psd_error(
     truth: np.ndarray,
     predictions: np.ndarray,
     nperseg: int = 1024
@@ -181,6 +181,7 @@ def trajectory_vitality(
         tail_pct (float): Percent of the trajectory from the end to analyze.
         collapse_threshold (float): Ratio of variance below which a model is 'dead'.
     """
+
     n_steps = len(preds)
     start_idx = int(n_steps * (1.0 - tail_pct))
     
