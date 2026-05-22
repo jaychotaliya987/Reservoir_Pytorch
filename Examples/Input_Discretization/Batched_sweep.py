@@ -14,7 +14,7 @@ from reservoirgrid.helpers import utils
 from scipy.stats import qmc
 
 TARGET_PP = "all"
-system_list = ["Rossler", "Chua", "Chen", "Thomas", "Halvorsen", "SprottD", "GuckenheimerHolmes"]
+system_list = ["Chua", "Chen", "Thomas", "Halvorsen", "SprottD", "GuckenheimerHolmes"]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Hyperparameter Sweep Setup
@@ -92,7 +92,7 @@ for system in system_list:
             output_dim = r_dim,
             sparsity = 0.9,
             return_targets = True,
-            batch_size = 50
+            batch_size = 32
         )
 
         # Save results
