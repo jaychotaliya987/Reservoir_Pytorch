@@ -1,3 +1,5 @@
+from operator import truth
+
 import numpy as np
 import torch
 
@@ -10,6 +12,7 @@ from typing import Tuple, Optional, Union
 # Constants
 EPSILON = 1e-10
 MIN_SAMPLES = 10
+
 
 def lyapunov_exponent(model_states: list) -> float:
     """Compute Lyapunov exponent from reservoir state norms."""
@@ -78,11 +81,29 @@ def lyapunov_time(
         raise ValueError(f"Invalid method: '{method}'. Use 'threshold' or 'fit'.")
 
 def _compute_histogram(X, bins, ranges):
-    """Compute flattened histogram with smoothing."""
-    H, _ = np.histogramdd(X, bins=bins, range=ranges, density=True)
-    return H.flatten() + EPSILON
 
-def kl_divergence(truth, predictions, bins=20) -> float:
+    """Compute flattened histogram with smoothing."""
+
+    H, _ = np.histogramdd(X, bins=bins, range=ranges)
+    return H.flatten() + EPSILON 
+
+def js_divergence(truth: np.ndarray, 
+                  predictions: np.ndarray, 
+                  bins: int = 5, test: bool = False
+) -> float:
+    
+    """Jensen-Shannon divergence"""
+    all_data = np.vstack([truth, predictions])
+    ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
+    if test:
+        print(f"Ranges: {ranges}")
+    P = _compute_histogram(truth, bins, ranges)
+    Q = _compute_histogram(predictions, bins, ranges)
+    
+    M = 0.5 * (P + Q)
+    return float(0.5 * entropy(P, M) + 0.5 * entropy(Q, M))
+
+def kl_divergence(truth, predictions, bins=5) -> float:
     all_data = np.vstack([truth, predictions])
     ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
 
@@ -94,25 +115,9 @@ def kl_divergence(truth, predictions, bins=20) -> float:
 
     return float(entropy(P, Q))
 
-def js_divergence(truth: np.ndarray, 
-                  predictions: np.ndarray, 
-                  bins: int = 20
-) -> float:
-    
-    """Jensen-Shannon divergence"""
-    all_data = np.vstack([truth, predictions])
-    ranges = [(all_data[:, i].min(), all_data[:, i].max()) for i in range(all_data.shape[1])]
-
-    P = _compute_histogram(truth, bins, ranges)
-    Q = _compute_histogram(predictions, bins, ranges)
-    
-
-    M = 0.5 * (P + Q)
-    return float(0.5 * entropy(P, M) + 0.5 * entropy(Q, M))
-
 def symmetric_kl(truth: np.ndarray, 
                  predictions: np.ndarray, 
-                 bins: int = 20
+                 bins: int = 5
 ) -> float:
     
     """Symmetrized KL divergence"""
