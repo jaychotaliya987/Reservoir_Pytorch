@@ -1,16 +1,19 @@
-import numpy as np
-from matplotlib.colors import to_hex
-import matplotlib.cm as cm
-import torch
-from typing import Union
 import os
+import pickle
+from typing import Union
+
+import numpy as np
+import pandas as pd
+import torch
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
-from plotly.express import histogram
+from plotly.subplots import make_subplots
 
 from ..models import Reservoir
+
 
 def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), colorscale='Viridis', 
                  line_width=3, marker_size=2, bgcolor='rgb(240, 240, 240)', **kwargs) -> go.Figure:
@@ -75,8 +78,8 @@ def compare_plot(datasets, title=None, legend_names=None ,figsize=(1080, 600), c
     return fig
 
 def plot_components(trajectory, time=None, labels=None, title=None, 
-                   figsize=(1080,600), colorscale='Viridis', line_width=2.5,
-                   bgcolor='rgb(240, 240, 240)', title_fontsize=20) -> go.Figure:
+                    figsize=(1080,600), colorscale='Viridis', line_width=2.5,
+                    bgcolor='rgb(240, 240, 240)', title_fontsize=20) -> go.Figure:
     """
     Create beautiful interactive component plot using Plotly.
     
@@ -109,8 +112,8 @@ def plot_components(trajectory, time=None, labels=None, title=None,
         specs=[[{'type': 'xy'}] for _ in range(n_components)]  # Proper 2D specs structure
     )
     
-    # Get colors from colorscale
-    colors = [to_hex(cm.get_cmap('viridis') (i/n_components)) for i in range(n_components)]
+    # Use Plotly's built-in sample colorscale generator to completely avoid matplotlib imports
+    colors = px.colors.sample_colorscale(colorscale, n_components)
     
     for i in range(n_components):
         fig.add_trace(go.Scatter(
@@ -160,27 +163,6 @@ def visualize_reservoir_states(
 ):
     """
     Enhanced visualization of reservoir unit activations with multiple analysis tools.
-    
-    Args:
-        model: Reservoir model or result dictionary containing 'reservoir_states'
-        n_units: Number of reservoir units to visualize (randomly sampled)
-        time_window: Tuple of (start, end) indices to zoom in on specific time period
-        plot_type: Type of visualization ('line', 'heatmap', or 'both')
-        show_distribution: Whether to show activation distribution histograms
-    
-    Returns:
-        plotly.graph_objects.Figure: Interactive visualization figure
-    
-    Interpretation Guide:
-        - Healthy reservoirs show:
-            * Diverse activation patterns (not all identical)
-            * Reasonable amplitude (-1 to 1 range)
-            * Mix of periodic and chaotic behaviors
-        - Problem signs:
-            * Flat lines → Dead units
-            * Saturated activations → Poor input scaling
-            * Synchronized units → Lack of separation
-            * Exploding values → Stability issues
     """
     # Extract states from model or results dict
     if isinstance(model, dict):
@@ -198,7 +180,6 @@ def visualize_reservoir_states(
     if states.shape[0] > states.shape[1]:
         states = np.squeeze(states)
     
-
     # Apply time window
     start, end = time_window
     states = states[:, start:end] if None not in time_window else states
@@ -239,7 +220,7 @@ def visualize_reservoir_states(
             return heatmap_fig
         
     if show_distribution:
-        hist_fig = histogram(
+        hist_fig = px.histogram(
             states.T,
             nbins=50,
             labels={'value': 'Activation'},
@@ -259,7 +240,6 @@ def visualize_reservoir_states(
     )
     
     if show_distribution:
-        from plotly.subplots import make_subplots
         combined_fig = make_subplots(
             rows=2, cols=1,
             subplot_titles=('Temporal Dynamics', 'Activation Distribution'),
@@ -275,193 +255,210 @@ def visualize_reservoir_states(
         combined_fig.update_layout(height=900, showlegend=True)
         return combined_fig
     
-    fig.show()
+    fig.show
 
-def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False):
-    fig = go.Figure()
+def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False): 
+     fig = go.Figure() 
 
-    axis_config = dict(
-        showline=True,
-        linecolor="#1A202C",
-        linewidth=3,
-        showgrid=True,
-        gridcolor="#E2E8F0",
-        gridwidth=1,
-        zeroline=False,
-        showticklabels=False,
-        ticks="",
-        title=""
-    )
 
-    param_strings = []
-    metric_strings = []
+     axis_config = dict( 
+         showline=True, 
+         linecolor="#1A202C", 
+         linewidth=3, 
+         showgrid=True, 
+         gridcolor="#E2E8F0", 
+         gridwidth=1, 
+         zeroline=False, 
+         showticklabels=False, 
+         ticks="", 
+         title="" 
+     ) 
 
-    # --- PASS 1: Add all traces ---
-    for i, result in enumerate(results):
-        true_vals = result['true_value']
-        preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions']
-        params = result['parameters']
 
-        if true_vals.shape[1] != 3 or preds.shape[1] != 3:
-            raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])")
+     param_strings = [] 
+     metric_strings = [] 
 
-        current_run_metrics = {}
-        if metrics_dict:
-            if i in metrics_dict and isinstance(metrics_dict[i], dict):
-                current_run_metrics = metrics_dict[i]
-            else:
-                for metric_name, values in metrics_dict.items():
-                    if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i:
-                        current_run_metrics[metric_name] = values[i]
-                    elif isinstance(values, (int, float)):
-                        current_run_metrics[metric_name] = values
 
-        metric_items = [
-            f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}"
-            for k, v in current_run_metrics.items()
-        ]
-        metric_strings.append(" | ".join(metric_items))
+     # --- PASS 1: Add all traces --- 
+     for i, result in enumerate(results): 
+         true_vals = result['true_value'] 
+         preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions'] 
+         params = result['parameters'] 
 
-        param_str = "  \u00b7  ".join([f"<b>{k}</b>: {v}" for k, v in params.items()])
-        param_strings.append(param_str)
 
-        fig.add_trace(go.Scatter3d(
-            x=true_vals[:, 0], y=true_vals[:, 1], z=true_vals[:, 2],
-            name='True Trajectory',
-            mode='lines',
-            line=dict(color='#4A5568', width=4),
-            visible=(i == 0)
-        ))
-        fig.add_trace(go.Scatter3d(
-            x=preds[:, 0], y=preds[:, 1], z=preds[:, 2],
-            name='Predicted Trajectory',
-            mode='lines',
-            line=dict(color='#FF6B6B', width=5.5),
-            visible=(i == 0)
-        ))
+         if true_vals.shape[1] != 3 or preds.shape[1] != 3: 
+             raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])") 
 
-    # --- PASS 2: Build buttons ---
-    n = len(results)
-    buttons = []
 
-    for i in range(n):
-        visible = [False] * (n * 2)
-        visible[i * 2] = True
-        visible[i * 2 + 1] = True
+         current_run_metrics = {} 
+         if metrics_dict: 
+             if i in metrics_dict and isinstance(metrics_dict[i], dict): 
+                 current_run_metrics = metrics_dict[i] 
+             else: 
+                 for metric_name, values in metrics_dict.items(): 
+                     if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i: 
+                         current_run_metrics[metric_name] = values[i] 
+                     elif isinstance(values, (int, float)): 
+                         current_run_metrics[metric_name] = values 
 
-        metric_label_part = f" ({metric_strings[i]})" if metric_strings[i] else ""
 
-        buttons.append(dict(
-            label=f"Set {i+1}{metric_label_part}",
-            method="update",
-            args=[
-                {"visible": visible},
-                {
-                    # Title stays clean — system name only
-                    "title.text": f"<b>{system_name}</b>",
+         metric_items = [ 
+             f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}" 
+             for k, v in current_run_metrics.items() 
+         ] 
+         metric_strings.append(" | ".join(metric_items)) 
 
-                    # Annotation updates to show the selected set's params
-                    "annotations[0].text": (
-                        f"<span style='color:#718096; font-size:11px;'>{param_strings[i]}</span>"
-                    ),
 
-                    "scene.camera": {"eye": {"x": 1.4, "y": 1.4, "z": 0.8}},
-                    "scene.xaxis": axis_config,
-                    "scene.yaxis": axis_config,
-                    "scene.zaxis": axis_config,
-                    "scene.aspectmode": "data",
-                }
-            ]
-        ))
+         param_str = "  ·  ".join([f"<b>{k}</b>: {v}" for k, v in params.items()]) 
+         param_strings.append(param_str) 
 
-    fig.update_layout(
-        # Clean title — system name only
-        title=dict(
-            text=f"<b>{system_name}</b>",
-            x=0.02,
-            xanchor="left",
-            y=0.98,
-            yanchor="top",
-            font=dict(size=16, color="#2D3748")
-        ),
 
-        # Param text as annotation sitting just below the title
-        annotations=[dict(
-            text=(
-                f"<span style='color:#718096; font-size:11px;'>{param_strings[0]}</span>"
-            ),
-            x=0.02,
-            y=1.1,             # just below title
-            xref="paper",
-            yref="paper",
-            xanchor="left",
-            yanchor="top",
-            showarrow=False,
-            align="left",
-        )],
+         fig.add_trace(go.Scatter3d( 
+             x=true_vals[:, 0], y=true_vals[:, 1], z=true_vals[:, 2], 
+             name='True Trajectory', 
+             mode='lines', 
+             line=dict(color='#4A5568', width=4), 
+             visible=(i == 0) 
+         )) 
+         fig.add_trace(go.Scatter3d( 
+             x=preds[:, 0], y=preds[:, 1], z=preds[:, 2], 
+             name='Predicted Trajectory', 
+             mode='lines', 
+             line=dict(color='#FF6B6B', width=5.5, dash='longdash'), 
+             visible=(i == 0) 
+         )) 
 
-        font=dict(family="Inter, BlinkMacSystemFont, Segoe UI, sans-serif", size=12, color="#2D3748"),
 
-        updatemenus=[{
-            "buttons": buttons,
-            "direction": "down",
-            "showactive": True,
-            "active": 0,
-            # Right side, vertically aligned with the param text row
-            "x": 0.02,
-            "y": 1.05,          # same vertical band as the annotation
-            "xanchor": "left",
-            "yanchor": "top",
-            "bgcolor": "#FFFFFF",
-            "bordercolor": "#CBD5E0",
-            "borderwidth": 1,
-            "pad": {"r": 8, "t": 6},
-            "font": dict(size=11)
-        }],
+     # --- PASS 2: Build buttons --- 
+     n = len(results) 
+     buttons = [] 
 
-        scene=dict(
-            xaxis=axis_config,
-            yaxis=axis_config,
-            zaxis=axis_config,
-            aspectmode='data',
-            camera=dict(
-                eye=dict(x=1.25, y=1.25, z=0.6),   
-                up=dict(x=0, y=0, z=1),
-                center=dict(x=0, y=0, z=-0.1)      
-                )
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=1,
-            xanchor="right",
-            x=0.99,
-            font=dict(size=11),
-            bgcolor="rgba(255,255,255,0.8)",
-            bordercolor="#CBD5E0",
-            borderwidth=1,
-        ),
-        template="plotly_white",
-        margin=dict(t=110, b=40, l=30, r=30),
-        height=750
-    )
 
-    if save_html:
-        full_path = os.path.join(path, system_name)
-        os.makedirs(full_path, exist_ok=True)
-        file_loc = os.path.join(full_path, f"{pp}.html")
-        fig.write_html(file_loc)
-        print(f"Saved layout successfully at {file_loc}")
+     for i in range(n): 
+         visible = [False] * (n * 2) 
+         visible[i * 2] = True 
+         visible[i * 2 + 1] = True 
 
-    if show:
-        fig.show()
 
-    return fig
+         metric_label_part = f" ({metric_strings[i]})" if metric_strings[i] else "" 
 
-import pickle
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+         buttons.append(dict( 
+             label=f"Set {i+1}{metric_label_part}", 
+             method="update", 
+             args=[ 
+                 {"visible": visible}, 
+                 { 
+                     # Title stays clean — system name only 
+                     "title.text": f"<b>{system_name}</b>", 
+
+
+                     # Annotation updates to show the selected set's params 
+                     "annotations[0].text": ( 
+                         f"<span style='color:#718096; font-size:11px;'>{param_strings[i]}</span>" 
+                     ), 
+
+
+                     "scene.camera": {"eye": {"x": 1.4, "y": 1.4, "z": 0.8}}, 
+                     "scene.xaxis": axis_config, 
+                     "scene.yaxis": axis_config, 
+                     "scene.zaxis": axis_config, 
+                     "scene.aspectmode": "data", 
+                 } 
+             ] 
+         )) 
+
+
+     fig.update_layout( 
+         # Clean title — system name only 
+         title=dict( 
+             text=f"<b>{system_name}</b>", 
+             x=0.02, 
+             xanchor="left", 
+             y=0.98, 
+             yanchor="top", 
+             font=dict(size=16, color="#2D3748") 
+         ), 
+
+
+         # Param text as annotation sitting just below the title 
+         annotations=[dict( 
+             text=( 
+                 f"<span style='color:#718096; font-size:11px;'>{param_strings[0]}</span>" 
+             ), 
+             x=0.02, 
+             y=1.1,             # just below title 
+             xref="paper", 
+             yref="paper", 
+             xanchor="left", 
+             yanchor="top", 
+             showarrow=False, 
+             align="left", 
+         )], 
+
+
+         font=dict(family="Inter, BlinkMacSystemFont, Segoe UI, sans-serif", size=12, color="#2D3748"), 
+
+
+         updatemenus=[{ 
+             "buttons": buttons, 
+             "direction": "down", 
+             "showactive": True, 
+             "active": 0, 
+             # Right side, vertically aligned with the param text row 
+             "x": 0.02, 
+             "y": 1.05,          # same vertical band as the annotation 
+             "xanchor": "left", 
+             "yanchor": "top", 
+             "bgcolor": "#FFFFFF", 
+             "bordercolor": "#CBD5E0", 
+             "borderwidth": 1, 
+             "pad": {"r": 8, "t": 6}, 
+             "font": dict(size=11) 
+         }], 
+
+
+         scene=dict( 
+             xaxis=axis_config, 
+             yaxis=axis_config, 
+             zaxis=axis_config, 
+             aspectmode='data', 
+             camera=dict( 
+                 eye=dict(x=1.25, y=1.25, z=0.6),    
+                 up=dict(x=0, y=0, z=1), 
+                 center=dict(x=0, y=0, z=-0.1)       
+                 ) 
+         ), 
+         legend=dict( 
+             orientation="h", 
+             yanchor="top", 
+             y=1, 
+             xanchor="right", 
+             x=0.99, 
+             font=dict(size=11), 
+             bgcolor="rgba(255,255,255,0.8)", 
+             bordercolor="#CBD5E0", 
+             borderwidth=1, 
+         ), 
+         template="plotly_white", 
+         margin=dict(t=110, b=40, l=30, r=30), 
+         height=750 
+     ) 
+
+
+     if save_html: 
+         full_path = os.path.join(path, system_name) 
+         os.makedirs(full_path, exist_ok=True) 
+         file_loc = os.path.join(full_path, f"{pp}.html") 
+         fig.write_html(file_loc) 
+         print(f"Saved layout successfully at {file_loc}") 
+
+
+     if show: 
+         fig.show() 
+
+
+     return fig
 
 
 def load_and_parse(path):
@@ -471,7 +468,6 @@ def load_and_parse(path):
     
     data = []
     for res in results:
-        # Flatten dictionary for DataFrame
         row = {
             'SR': res['parameters']['SpectralRadius'],
             'LR': res['parameters']['LeakyRate'],
@@ -481,20 +477,16 @@ def load_and_parse(path):
         data.append(row)
     
     df = pd.DataFrame(data)
-    # Filter out exploded runs (NaN or Infinity) right at loading
     df = df.replace([np.inf, -np.inf], np.nan).dropna()
     return df
 
-# --- PLOT 1: 3D Parameter Space ---
 def plot_3d_scatter(df, ax=None):
-    """Plots a 3D scatter of SR, LR, and IS colored by RMSE."""
     show_plot = False
     if ax is None:
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
         show_plot = True
 
-    # Color by RMSE (Dark = Good/Low RMSE, Yellow = Bad/High RMSE)
     img = ax.scatter(df['SR'], df['LR'], df['IS'], c=df['RMSE'], 
                      cmap='viridis_r', alpha=0.8, edgecolors='k', linewidth=0.3)
     
@@ -502,7 +494,6 @@ def plot_3d_scatter(df, ax=None):
     ax.set_ylabel('Leaky Rate')
     ax.set_title('3D Parameter Landscape (Color = RMSE)')
     
-    # Handle colorbar carefully (attach to figure if possible, else ax)
     if ax.figure:
         ax.figure.colorbar(img, ax=ax, label='RMSE (Darker is Better)', shrink=0.6)
     
@@ -510,23 +501,11 @@ def plot_3d_scatter(df, ax=None):
         plt.show()
 
 def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=None, lower_is_better=True, save_path=None):
-    """
-    Plots parallel coordinates to show parameter flow, highlighting the best models.
-    
-    Args:
-        df (pd.DataFrame): The dataframe containing results.
-        metric (str): The column name to use for coloring and highlighting.
-        params (list): List of parameter columns to plot on the x-axis.
-        ax (plt.Axes, optional): Matplotlib axes to plot on.
-        lower_is_better (bool): If True, treats lower values as 'best'.
-        save_path (str, optional): File path to save the high-res image (e.g., 'parallel.png').
-    """
     show_plot = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(12, 6))
         show_plot = True
 
-    # 1. Normalize data
     df_plot = df[params].copy()
     for col in params:
         if df_plot[col].max() == df_plot[col].min():
@@ -534,10 +513,8 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
         else:
             df_plot[col] = (df_plot[col] - df_plot[col].min()) / (df_plot[col].max() - df_plot[col].min())
 
-    # 2. Attach metric
     df_plot['raw_metric'] = df[metric]
     
-    # 3. Sort Data
     if lower_is_better:
         df_plot = df_plot.sort_values('raw_metric', ascending=False)
         threshold = df[metric].quantile(0.1)
@@ -549,19 +526,16 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
 
     m_min, m_max = df[metric].min(), df[metric].max()
 
-    # 4. Plotting Loop
     for i, row in df_plot.iterrows():
         val = row['raw_metric']
         is_best = (val <= threshold) if lower_is_better else (val >= threshold)
         alpha = 0.9 if is_best else 0.05 
         
-        # Color mapping
         norm_c = (val - m_min) / (m_max - m_min) if m_max > m_min else 0.5
         color = cmap(norm_c)
         
         ax.plot(params, row[params], color=color, alpha=alpha)
 
-    # 5. Styling
     direction = "Lowest" if lower_is_better else "Highest"
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=m_min, vmax=m_max)) #type: ignore
     cbar = plt.colorbar(sm, ax=ax, pad=0.01)
@@ -579,9 +553,7 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    # --- SAVE LOGIC ---
     if save_path:
-        # We access the figure from the axis to ensure we save what was drawn
         ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Parallel Coordinates plot saved to: {save_path}")
 
@@ -589,9 +561,7 @@ def plot_parallel_coordinates(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=N
         plt.show()
 
 
-# --- PLOT 2: Correlation Matrix ---
 def plot_correlation_matrix(df, ax=None, save_path=None):
-    """Plots heatmap of pairwise correlations."""
     show_plot = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -601,7 +571,6 @@ def plot_correlation_matrix(df, ax=None, save_path=None):
     sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax, vmin=-1, vmax=1)
     ax.set_title('Correlation Matrix')
     
-    # --- SAVE LOGIC ---
     if save_path:
         ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Correlation Matrix saved to: {save_path}")
@@ -610,17 +579,12 @@ def plot_correlation_matrix(df, ax=None, save_path=None):
         plt.show()
 
 
-# --- PLOT 3: Best vs Worst Distributions ---
 def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], ax=None, lower_is_better=True, save_path=None):
-    """
-    Plots histograms of parameters for the top 20% performing models.
-    """
     show_plot = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 6))
         show_plot = True
 
-    # Filter for Top 20%
     if lower_is_better:
         threshold = df[metric].quantile(0.2)
         top_models = df[df[metric] <= threshold]
@@ -630,7 +594,6 @@ def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], a
         top_models = df[df[metric] >= threshold]
         direction_label = "Highest"
 
-    # Plot histograms
     for param in params:
         if param in df.columns:
             ax.hist(top_models[param], alpha=0.5, label=f'Best {param}', bins=10, density=True)
@@ -642,7 +605,6 @@ def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], a
     ax.set_ylabel('Density')
     ax.set_xlabel('Parameter Value')
     
-    # --- SAVE LOGIC ---
     if save_path:
         ax.figure.savefig(save_path, dpi=300, bbox_inches='tight') #type: ignore
         print(f"Distribution plot saved to: {save_path}")
@@ -650,7 +612,7 @@ def plot_parameter_distributions(df, metric='RMSE', params=['SR', 'LR', 'IS'], a
     if show_plot:
         plt.show()
 
-# --- MAIN DRIVER ---
+
 def plot_all_analysis(df):
     """Creates a dashboard combining all 4 plots."""
     print(f"Plotting {len(df)} valid runs...")
@@ -659,7 +621,6 @@ def plot_all_analysis(df):
 
     fig = plt.figure(figsize=(18, 10))
     
-    # Grid: 2 rows, 2 columns
     ax1 = fig.add_subplot(2, 2, 1, projection='3d')
     plot_3d_scatter(df, ax=ax1)
     
@@ -676,28 +637,10 @@ def plot_all_analysis(df):
     plt.show()
 
 
-
-
-
-
-
-
-
 ###______________________________ Abstractions ______________________________###
 
 
 def _get_trace_builders(dim):
-    """This function returns the number of traces, 1,2,3 for each dimension according to the dimension of the data.
-    This is a abstraction is used because I do not want to reiterate the name setting everywhere in the function. Design Principle: Do NOT REPEAT YOURSELF
-
-    Args:
-        dim (_type_): Dimension of the data
-
-    Raises:
-        ValueError: If the dimension is not supported
-    Returns:
-        _type_: number of traces and 
-    """
     if dim == 1 or dim == 2:
         def line_trace(x, y, name, color, lw): #type: ignore
             return go.Scatter(
