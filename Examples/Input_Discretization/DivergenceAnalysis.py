@@ -134,10 +134,10 @@ def compute_dying_percentage(metric_name, top_n=10):
 
 path = "Examples/Input_Discretization/results/Chaotic/"
 save_path = "Plots/SingleMetric/LHS"
-system_name = "ThomasLHS"
+system_name = "RosslerLHS"
 system_path = os.path.join(path, system_name)
 
-file = os.path.join(system_path, "50.0.pkl")
+file = os.path.join(system_path, "80.0.pkl")
 with open(file, "rb") as f:
     data_10 = pickle.load(f)
 
