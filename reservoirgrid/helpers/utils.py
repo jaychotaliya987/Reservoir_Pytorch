@@ -56,6 +56,7 @@ def discretization(
     return_times: bool = False
 ) -> np.ndarray:
     """Discretize a dynamical system and return results in a structured NumPy array."""
+    
     if not hasattr(system, 'make_trajectory'):
         raise AttributeError("System must have a 'make_trajectory' method.")
     if np.any(points_per_period_values <= 0):
@@ -84,6 +85,14 @@ def split(dataset: np.ndarray, window: int = 1, **kwargs):
     """
     Splits dataset into training and testing sequences offsetting
     inputs and targets with a window.
+
+    Args:
+        dataset: (T, D) array of time series data
+        window: number of time steps to offset inputs and targets
+        kwargs: passed to train_test_split (e.g. test_size, random_state)
+    
+    Returns:
+        train_inputs, test_inputs, train_targets, test_targets as PyTorch tensors
     """
     inputs, targets = dataset[:-window], dataset[window:]
     train_inputs, test_inputs, train_targets, test_targets = train_test_split(
@@ -110,7 +119,7 @@ def _power_iteration_spectral_radius(
 ) -> torch.Tensor:
     """
     Estimate max eigenvalue (spectral radius) using power iteration.
-    Much faster than torch.linalg.eigvals for large matrices on RTX 4060.
+    Much faster than torch.linalg.eigvals for large matrices.
     
     Args:
         W: (N, R, R) batch of matrices
