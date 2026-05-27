@@ -1,0 +1,16 @@
+{
+    "exp": "rc_search",
+    "hp_max_evals": 75,
+    "hp_method": "random",
+    "seed": 42,
+    "instances_per_trial": 3,
+    "hp_space": {
+        "N":                  ["quniform", 50, 500, 50],
+        "sr":                 ["loguniform", 0.01, 1.0],
+        "lr":                 ["loguniform", 0.001, 1.0],
+        "input_scaling":      ["loguniform", 0.01, 2.0],
+        "ridge":              ["loguniform", 1e-8, 0.1],
+        "input_connectivity": ["uniform",    0.05, 0.5],
+        "rc_connectivity":    ["uniform",    0.05, 0.5]
+    }
+}
