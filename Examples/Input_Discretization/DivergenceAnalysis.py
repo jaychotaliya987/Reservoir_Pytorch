@@ -72,9 +72,6 @@ def plot_attractor_grid(indices, metric_values, metric_name, data_source, filena
         # Pure white inside the "cards" creates depth against the #F8FAFC background
         ax.set_facecolor("#FFFFFF")     
 
-    # Hide completely empty trailing subplot slots cleanly
-    for j in range(i + 1, len(axes_flat)):
-        axes_flat[j].axis('off')
 
     # Automatically adjust padding so nothing clips or strings wrap awkwardly
     plt.tight_layout(pad=3.0)
@@ -140,7 +137,7 @@ save_path = "Plots/SingleMetric/LHS"
 system_name = "ThomasLHS"
 system_path = os.path.join(path, system_name)
 
-file = os.path.join(system_path, "100.0.pkl")
+file = os.path.join(system_path, "50.0.pkl")
 with open(file, "rb") as f:
     data_10 = pickle.load(f)
 
@@ -169,11 +166,11 @@ for data in data_10:
 matrices = pd.DataFrame(rows)
 
 
-visualize_metric("JS Divergence", top_n=20)
-visualize_metric("RMSE", top_n=20)
-visualize_metric("KL Divergence", top_n=20)
-visualize_metric("Symmetric KL", top_n=20)
-visualize_metric("PSD Error", top_n=20)
+visualize_metric("JS Divergence", top_n=8)
+visualize_metric("RMSE", top_n=8)
+visualize_metric("KL Divergence", top_n=8)
+visualize_metric("Symmetric KL", top_n=8)
+visualize_metric("PSD Error", top_n=8)
 
 compute_dying_percentage("JS Divergence", top_n=100)
 compute_dying_percentage("RMSE", top_n=100)
