@@ -8,6 +8,7 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import json
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -153,6 +154,128 @@ def plot_components(trajectory, time=None, labels=None, title=None,
     fig.update_xaxes(title_text='Time', col=1)   
     return fig
 
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+
+def compare_components(datasets, time=None, labels=None, component_labels=None, 
+                       title=None, figsize=(1080, 700), line_width=2.5, 
+                       bgcolor='rgb(240, 240, 240)', title_fontsize=20) -> go.Figure:
+    """
+    Create a subplot figure comparing the individual components of multiple datasets over time.
+    Perfect for visualizing True vs. Predicted coordinate breakdowns (X, Y, Z) simultaneously.
+    
+    Args:
+        datasets (list): List of numpy arrays. Each array has shape (n_points, n_components).
+        time (np.ndarray): Custom time values or indices for the x-axis.
+        labels (list): Labels for each dataset (e.g., ['True Trajectory', 'Predicted'])
+        component_labels (list): Names for the components (e.g., ['X Component', 'Y Component'])
+        title (str): Overall figure title
+        figsize (tuple): Figure size (width, height)
+        line_width: Width of the plot lines
+        bgcolor: Background color for the plot area
+        title_fontsize: Font size for the main title
+        
+    Returns:
+        plotly.graph_objects.Figure
+    """
+    n_datasets = len(datasets)
+    if n_datasets == 0:
+        raise ValueError("The datasets list cannot be empty.")
+        
+    # Standardize 1D arrays to 2D column vectors
+    processed_datasets = []
+    for data in datasets:
+        if data.ndim == 1:
+            processed_datasets.append(data.reshape(-1, 1))
+        else:
+            processed_datasets.append(data)
+            
+    # Determine dimensions based on the first dataset
+    n_points, n_components = processed_datasets[0].shape
+    
+    # Setup defaults if arguments aren't provided
+    time = np.arange(n_points) if time is None else time
+    
+    if labels is None:
+        labels = [f'Dataset {i+1}' for i in range(n_datasets)]
+        
+    if component_labels is None:
+        component_labels = [f'Component {i+1}' for i in range(n_components)]
+        
+    # Qualitative color palette ensures distinct colors per dataset across all subplots
+    colors = px.colors.qualitative.Plotly
+
+    # Create stacked subplots (one row per component)
+    fig = make_subplots(
+        rows=n_components, 
+        cols=1, 
+        shared_xaxes=True,
+        vertical_spacing=0.06,  # Slightly loose spacing for clean labels
+        subplot_titles=[f"<b>{label}</b>" for label in component_labels],
+        specs=[[{'type': 'xy'}] for _ in range(n_components)]
+    )
+
+    # Loop through each component (row)
+    for comp_idx in range(n_components):
+        # Loop through each dataset (line trace within that row)
+        for data_idx, data in enumerate(processed_datasets):
+            
+            # Check for potential shape mismatch across input datasets
+            if data.shape[1] <= comp_idx:
+                continue 
+                
+            fig.add_trace(
+                go.Scatter(
+                    x=time,
+                    y=data[:, comp_idx],
+                    mode='lines',
+                    line=dict(width=line_width, color=colors[data_idx % len(colors)]),
+                    name=labels[data_idx],
+                    hoverinfo='x+y',
+                    # Only show the legend item for the very first subplot row to avoid duplicates
+                    showlegend=(comp_idx == 0) 
+                ), 
+                row=comp_idx + 1, 
+                col=1
+            )
+            
+        # Customize grid and axes for the subplot layer
+        fig.update_yaxes(title_text=component_labels[comp_idx], row=comp_idx + 1, col=1)
+        fig.update_xaxes(showgrid=True, gridcolor='rgb(215, 215, 215)', row=comp_idx + 1, col=1)
+        fig.update_yaxes(showgrid=True, gridcolor='rgb(215, 215, 215)', row=comp_idx + 1, col=1)
+
+    # Global layout adjustments
+    fig.update_layout(
+        height=figsize[1],
+        width=figsize[0],
+        title={
+            'text': f"<b>{title}</b>" if title else "",
+            'y': 0.96,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': dict(size=title_fontsize, family='Arial')
+        },
+        margin=dict(l=60, r=50, b=60, t=100 if title else 60),
+        paper_bgcolor='white',
+        plot_bgcolor=bgcolor,
+        hovermode='x unified', # Shows all dataset values simultaneously on hover
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        font=dict(family='Arial', size=12)
+    )
+
+    # Label only the bottom-most x-axis to keep things perfectly neat
+    fig.update_xaxes(title_text='Time', row=n_components, col=1)   
+    
+    return fig
 
 def visualize_reservoir_states(
     model: Union[Reservoir, dict], 
@@ -258,214 +381,6 @@ def visualize_reservoir_states(
     fig.show
 
 def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False): 
-     fig = go.Figure() 
-
-
-     axis_config = dict( 
-         showline=True, 
-         linecolor="#1A202C", 
-         linewidth=3, 
-         showgrid=True, 
-         gridcolor="#E2E8F0", 
-         gridwidth=1, 
-         zeroline=False, 
-         showticklabels=False, 
-         ticks="", 
-         title="" 
-     ) 
-
-
-     param_strings = [] 
-     metric_strings = [] 
-
-
-     # --- PASS 1: Add all traces --- 
-     for i, result in enumerate(results): 
-         true_vals = result['true_value'] 
-         preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions'] 
-         params = result['parameters'] 
-
-
-         if true_vals.shape[1] != 3 or preds.shape[1] != 3: 
-             raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])") 
-
-
-         current_run_metrics = {} 
-         if metrics_dict: 
-             if i in metrics_dict and isinstance(metrics_dict[i], dict): 
-                 current_run_metrics = metrics_dict[i] 
-             else: 
-                 for metric_name, values in metrics_dict.items(): 
-                     if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i: 
-                         current_run_metrics[metric_name] = values[i] 
-                     elif isinstance(values, (int, float)): 
-                         current_run_metrics[metric_name] = values 
-
-
-         metric_items = [ 
-             f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}" 
-             for k, v in current_run_metrics.items() 
-         ] 
-         metric_strings.append(" | ".join(metric_items)) 
-
-
-         param_str = "  ·  ".join([f"<b>{k}</b>: {v}" for k, v in params.items()]) 
-         param_strings.append(param_str) 
-
-
-         fig.add_trace(go.Scatter3d( 
-             x=true_vals[:, 0], y=true_vals[:, 1], z=true_vals[:, 2], 
-             name='True Trajectory', 
-             mode='lines', 
-             line=dict(color='#4A5568', width=4), 
-             visible=(i == 0) 
-         )) 
-         fig.add_trace(go.Scatter3d( 
-             x=preds[:, 0], y=preds[:, 1], z=preds[:, 2], 
-             name='Predicted Trajectory', 
-             mode='lines', 
-             line=dict(color='#FF6B6B', width=5.5), 
-             visible=(i == 0) 
-         )) 
-
-
-     # --- PASS 2: Build buttons --- 
-     n = len(results) 
-     buttons = [] 
-
-
-     for i in range(n): 
-         visible = [False] * (n * 2) 
-         visible[i * 2] = True 
-         visible[i * 2 + 1] = True 
-
-
-         metric_label_part = f" ({metric_strings[i]})" if metric_strings[i] else "" 
-
-
-         buttons.append(dict( 
-             label=f"Set {i+1}{metric_label_part}", 
-             method="update", 
-             args=[ 
-                 {"visible": visible}, 
-                 { 
-                     # Title stays clean — system name only 
-                     "title.text": f"<b>{system_name}</b>", 
-
-
-                     # Annotation updates to show the selected set's params 
-                     "annotations[0].text": ( 
-                         f"<span style='color:#718096; font-size:11px;'>{param_strings[i]}</span>" 
-                     ), 
-
-
-                     "scene.camera": {"eye": {"x": 1.4, "y": 1.4, "z": 0.8}}, 
-                     "scene.xaxis": axis_config, 
-                     "scene.yaxis": axis_config, 
-                     "scene.zaxis": axis_config, 
-                     "scene.aspectmode": "data", 
-                 } 
-             ] 
-         )) 
-
-
-     fig.update_layout( 
-         # Clean title — system name only 
-         title=dict( 
-             text=f"<b>{system_name}</b>", 
-             x=0.02, 
-             xanchor="left", 
-             y=0.98, 
-             yanchor="top", 
-             font=dict(size=16, color="#2D3748") 
-         ), 
-
-
-         # Param text as annotation sitting just below the title 
-         annotations=[dict( 
-             text=( 
-                 f"<span style='color:#718096; font-size:11px;'>{param_strings[0]}</span>" 
-             ), 
-             x=0.02, 
-             y=1.1,             # just below title 
-             xref="paper", 
-             yref="paper", 
-             xanchor="left", 
-             yanchor="top", 
-             showarrow=False, 
-             align="left", 
-         )], 
-
-
-         font=dict(family="Inter, BlinkMacSystemFont, Segoe UI, sans-serif", size=12, color="#2D3748"), 
-
-
-         updatemenus=[{ 
-             "buttons": buttons, 
-             "direction": "down", 
-             "showactive": True, 
-             "active": 0, 
-             # Right side, vertically aligned with the param text row 
-             "x": 0.02, 
-             "y": 1.05,          # same vertical band as the annotation 
-             "xanchor": "left", 
-             "yanchor": "top", 
-             "bgcolor": "#FFFFFF", 
-             "bordercolor": "#CBD5E0", 
-             "borderwidth": 1, 
-             "pad": {"r": 8, "t": 6}, 
-             "font": dict(size=11) 
-         }], 
-
-
-         scene=dict( 
-             xaxis=axis_config, 
-             yaxis=axis_config, 
-             zaxis=axis_config, 
-             aspectmode='data', 
-             camera=dict( 
-                 eye=dict(x=1.25, y=1.25, z=0.6),    
-                 up=dict(x=0, y=0, z=1), 
-                 center=dict(x=0, y=0, z=-0.1)       
-                 ) 
-         ), 
-         legend=dict( 
-             orientation="h", 
-             yanchor="top", 
-             y=1, 
-             xanchor="right", 
-             x=0.99, 
-             font=dict(size=11), 
-             bgcolor="rgba(255,255,255,0.8)", 
-             bordercolor="#CBD5E0", 
-             borderwidth=1, 
-         ), 
-         template="plotly_white", 
-         margin=dict(t=110, b=40, l=30, r=30), 
-         height=750 
-     ) 
-
-
-     if save_html: 
-         full_path = os.path.join(path, system_name) 
-         os.makedirs(full_path, exist_ok=True) 
-         file_loc = os.path.join(full_path, f"{pp}.html") 
-         fig.write_html(file_loc) 
-         print(f"Saved layout successfully at {file_loc}") 
-
-
-     if show: 
-         fig.show() 
-
-
-     return fig
-
-import os
-import json
-import numpy as np
-import plotly.graph_objects as go
-
-def plot_multidimensional_3d_js(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False): 
     fig = go.Figure() 
 
     axis_config = dict( 
