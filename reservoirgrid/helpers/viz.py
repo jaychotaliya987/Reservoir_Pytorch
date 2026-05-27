@@ -324,7 +324,7 @@ def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, 
              x=preds[:, 0], y=preds[:, 1], z=preds[:, 2], 
              name='Predicted Trajectory', 
              mode='lines', 
-             line=dict(color='#FF6B6B', width=5.5, dash='longdash'), 
+             line=dict(color='#FF6B6B', width=5.5), 
              visible=(i == 0) 
          )) 
 
@@ -460,6 +460,223 @@ def plot_multidimensional_3d(results, system_name, pp: int, metrics_dict: dict, 
 
      return fig
 
+import os
+import json
+import numpy as np
+import plotly.graph_objects as go
+
+def plot_multidimensional_3d_js(results, system_name, pp: int, metrics_dict: dict, path: str = "", save_html=False, show: bool = False): 
+    fig = go.Figure() 
+
+    axis_config = dict( 
+        showline=True, 
+        linecolor="#1A202C", 
+        linewidth=3, 
+        showgrid=True, 
+        gridcolor="#E2E8F0", 
+        gridwidth=1, 
+        zeroline=False, 
+        showticklabels=False, 
+        ticks="", 
+        title="" 
+    ) 
+
+    js_metadata = []
+    all_metric_keys = set()  # Collect unique metric names dynamically
+
+    # --- PASS 1: Add all traces & compile clean metadata --- 
+    for i, result in enumerate(results): 
+        true_vals = result['true_value'] 
+        preds = result['predictions'].cpu().numpy() if hasattr(result['predictions'], 'cpu') else result['predictions'] 
+        params = result['parameters'] 
+
+        if true_vals.shape[1] != 3 or preds.shape[1] != 3: 
+            raise ValueError("Data must be 3-dimensional (shape: [n_points, 3])") 
+
+        current_run_metrics = {} 
+        if metrics_dict: 
+            if i in metrics_dict and isinstance(metrics_dict[i], dict): 
+                current_run_metrics = metrics_dict[i] 
+            else: 
+                for metric_name, values in metrics_dict.items(): 
+                    if isinstance(values, (list, tuple, np.ndarray)) and len(values) > i: 
+                        current_run_metrics[metric_name] = values[i] 
+                    elif isinstance(values, (int, float)): 
+                        current_run_metrics[metric_name] = values 
+
+        # Track keys for our dropdown list generator
+        for k in current_run_metrics.keys():
+            all_metric_keys.add(k)
+
+        metric_items = [ 
+            f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}" 
+            for k, v in current_run_metrics.items() 
+        ] 
+        metric_str = " | ".join(metric_items)
+        param_str = "  ·  ".join([f"<b>{k}</b>: {v}" for k, v in params.items()]) 
+
+        # Map metrics directly to this structured object for the browser
+        js_metadata.append({
+            "trace_pair_index": i,
+            "label": f"Set {i+1}",
+            "params": params,       
+            "metrics": current_run_metrics,  # CHANGE: Now sending metrics for sorting!
+            "param_str": f"<span style='color:#718096; font-size:11px;'>{param_str}</span>",
+            "metric_str": metric_str
+        })
+
+        fig.add_trace(go.Scatter3d( 
+            x=true_vals[:, 0], y=true_vals[:, 1], z=true_vals[:, 2], 
+            name='True Trajectory', 
+            mode='lines', 
+            line=dict(color='#4A5568', width=4), 
+            visible=(i == 0) 
+        )) 
+        fig.add_trace(go.Scatter3d( 
+            x=preds[:, 0], y=preds[:, 1], z=preds[:, 2], 
+            name='Predicted Trajectory', 
+            mode='lines', 
+            line=dict(color='#FF6B6B', width=5.5), 
+            visible=(i == 0) 
+        )) 
+
+    fig.update_layout( 
+        title=dict( 
+            text=f"<b>{system_name}</b>", 
+            x=0.02, xanchor="left", y=0.98, yanchor="top", 
+            font=dict(size=16, color="#2D3748") 
+        ), 
+        annotations=[dict( 
+            text=js_metadata[0]['param_str'], 
+            x=0.02, y=1.1, 
+            xref="paper", yref="paper", xanchor="left", yanchor="top", 
+            showarrow=False, align="left", 
+        )], 
+        font=dict(family="Inter, BlinkMacSystemFont, Segoe UI, sans-serif", size=12, color="#2D3748"), 
+        scene=dict( 
+            xaxis=axis_config, yaxis=axis_config, zaxis=axis_config, 
+            aspectmode='data', 
+            camera=dict(
+                eye=dict(x=1.25, y=1.25, z=0.6), up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=-0.1)
+            ) 
+        ), 
+        legend=dict( 
+            orientation="h", yanchor="top", y=1, xanchor="right", x=0.99, 
+            font=dict(size=11), bgcolor="rgba(255,255,255,0.8)", bordercolor="#CBD5E0", borderwidth=1, 
+        ), 
+        template="plotly_white", 
+        margin=dict(t=140, b=40, l=30, r=30), 
+        height=750 
+    ) 
+
+    # --- JAVASCRIPT INJECTION ---
+    js_data_serialized = json.dumps(js_metadata)
+    metric_keys_serialized = json.dumps(list(all_metric_keys))
+
+    custom_js = f"""
+    const gd = document.getElementById('{{plot_id}}');
+    
+    const controlDiv = document.createElement('div');
+    controlDiv.style.position = 'absolute';
+    controlDiv.style.top = '45px';
+    controlDiv.style.left = '20px';
+    controlDiv.style.zIndex = '1000';
+    controlDiv.style.display = 'flex';
+    controlDiv.style.gap = '10px';
+    controlDiv.style.fontFamily = 'Inter, sans-serif';
+    controlDiv.style.fontSize = '12px';
+
+    // Build metric sorting options dynamically
+    let sortOptionsHtml = '<option value="default">Default Order (Index)</option>';
+    const metricKeys = {metric_keys_serialized};
+    metricKeys.forEach(k => {{
+        sortOptionsHtml += `<option value="${{k}}">Sort by: ${{k}} (Asc)</option>`;
+    }});
+
+    controlDiv.innerHTML = `
+        <div>
+            <label style="display:block; color:#718096; margin-bottom:2px;">Sort Metrics:</label>
+            <select id="js-sort-by" style="padding:4px 8px; border:1px solid #CBD5E0; border-radius:4px; background:#fff; min-width:180px;">
+                ${{sortOptionsHtml}}
+            </select>
+        </div>
+        <div>
+            <label style="display:block; color:#718096; margin-bottom:2px;">Select Run Trace:</label>
+            <select id="js-trace-selector" style="padding:4px 8px; border:1px solid #CBD5E0; border-radius:4px; background:#fff; min-width:280px; font-size:11px;">
+            </select>
+        </div>
+    `;
+    gd.appendChild(controlDiv);
+
+    let datasets = {js_data_serialized};
+    const sortSelect = document.getElementById('js-sort-by');
+    const traceSelect = document.getElementById('js-trace-selector');
+
+    function rebuildDropdown() {{
+        const sortBy = sortSelect.value;
+        
+        if (sortBy !== 'default') {{
+            const isDesc = sortBy.endsWith('_desc');
+            const key = isDesc ? sortBy.slice(0, -5) : sortBy;
+            
+            datasets.sort((a, b) => {{
+                let valA = a.metrics[key];
+                let valB = b.metrics[key];
+                
+                // Fallbacks if a run is missing a specific metric key
+                if (valA === undefined) return 1;
+                if (valB === undefined) return -1;
+                
+                return isDesc ? (valB - valA) : (valA - valB);
+            }});
+        }} else {{
+            datasets.sort((a, b) => a.trace_pair_index - b.trace_pair_index);
+        }}
+
+        traceSelect.innerHTML = '';
+        datasets.forEach(d => {{
+            const mPart = d.metric_str ? ` (${{d.metric_str}})` : '';
+            const option = document.createElement('option');
+            option.value = d.trace_pair_index;
+            option.innerText = `${{d.label}}${{mPart}}`;
+            traceSelect.appendChild(option);
+        }});
+        
+        updatePlot(datasets[0].trace_pair_index);
+    }}
+
+    function updatePlot(activeTargetIdx) {{
+        const totalTraces = gd.data.length;
+        const visibleArray = new Array(totalTraces).fill(false);
+        
+        visibleArray[activeTargetIdx * 2] = true;
+        visibleArray[activeTargetIdx * 2 + 1] = true;
+
+        const targetData = datasets.find(d => d.trace_pair_index === activeTargetIdx);
+
+        Plotly.update(gd, 
+            {{ 'visible': visibleArray }}, 
+            {{ 'annotations[0].text': targetData.param_str }}
+        );
+    }}
+
+    sortSelect.addEventListener('change', rebuildDropdown);
+    traceSelect.addEventListener('change', (e) => updatePlot(parseInt(e.target.value)));
+
+    rebuildDropdown();
+    """
+
+    if save_html: 
+        full_path = os.path.join(path, system_name) 
+        os.makedirs(full_path, exist_ok=True) 
+        file_loc = os.path.join(full_path, f"{pp}.html") 
+        fig.write_html(file_loc, post_script=custom_js) 
+        print(f"Saved custom metric-sort layout successfully at {file_loc}") 
+
+    if show: 
+        fig.show() 
+
+    return fig
 
 def load_and_parse(path):
     print(f"Loading {path}...")
