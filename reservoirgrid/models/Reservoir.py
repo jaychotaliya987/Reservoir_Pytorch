@@ -218,53 +218,100 @@ class Reservoir(nn.Module):
 
     # ------------------------------------------------------------------
     # Train readout
-    # ------------------------------------------------------------------
-
+    # -----------------------------------------------------------------
     def train_readout(self,
                       inputs: torch.Tensor,
                       targets: torch.Tensor,
                       warmup: int = 0,
-                      alpha: float = 1e-6):
+                      alpha: float = 1e-6,
+                      chunk_size: int = 5000):
         """
-        Train the readout layer using Ridge Regression.
-        Works in both single and batched mode.
+        Train the readout layer using Chunked (Streaming) Ridge Regression.
+        Prevents VRAM OOM errors on very long sequences by accumulating 
+        the correlation matrices incrementally.
+        
+        Args:
+            inputs: (T, I) or (T, 1, I)
+            targets: (T, O)
+            warmup: Number of initial timesteps to discard.
+            alpha: Tikhonov regularization factor.
+            chunk_size: Number of timesteps processed per GPU kernel launch.
         """
         inputs  = inputs.to(self.device, self.dtype)
         targets = targets.to(self.device, self.dtype)
 
-        with torch.no_grad():
-            self.forward(inputs, reset_state=True)
-            X = self.reservoir_states[warmup:]    # (T', B, R)
-            Y = targets[warmup:]                  # (T', O)
+        if inputs.ndim == 3:
+            inputs = inputs.squeeze(1)
+        
+        T = inputs.shape[0]
+        
+        # 1. Preallocate running accumulators directly on the GPU
+        # XtX shape: (B, R, R) | XtY shape: (B, R, O)
+        XtX_total = torch.zeros(self.B, self.reservoir_dim, self.reservoir_dim, 
+                                device=self.device, dtype=self.dtype)
+        XtY_total = torch.zeros(self.B, self.reservoir_dim, self.output_dim, 
+                                device=self.device, dtype=self.dtype)
+        
+        reset_state = True  # Only reset state on the very first chunk
 
-        T_eff = X.shape[0]
-        Y_exp = Y.unsqueeze(1).expand(T_eff, self.B, self.output_dim)
+        # 2. Stream through the time dimension in chunks
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+            
+            # Fast path: If the entire chunk falls within the warmup period,
+            # just advance the reservoir state without calculating correlations.
+            if end <= warmup:
+                with torch.no_grad():
+                    self.forward(inputs[start:end], reset_state=reset_state)
+                reset_state = False
+                continue
+            
+            # Compute reservoir states for this chunk
+            with torch.no_grad():
+                self.forward(inputs[start:end], reset_state=reset_state)
+            reset_state = False  # Keep the state alive for subsequent chunks
+            
+            # Calculate how much of this specific chunk is valid past the warmup threshold
+            chunk_warmup = max(0, warmup - start)
+            
+            X_chunk = self.reservoir_states[chunk_warmup:]  # (T_chunk_eff, B, R)
+            Y_chunk = targets[start + chunk_warmup:end]     # (T_chunk_eff, O)
+            
+            T_chunk_eff = X_chunk.shape[0]
+            if T_chunk_eff == 0:
+                continue
+                
+            # Expand and permute to align configurations for batch matrix multiplication
+            Y_chunk_exp = Y_chunk.unsqueeze(1).expand(T_chunk_eff, self.B, self.output_dim)
+            X_b = X_chunk.permute(1, 0, 2)       # (B, T_chunk_eff, R)
+            Y_b = Y_chunk_exp.permute(1, 0, 2)   # (B, T_chunk_eff, O)
+            
+            # 3. Incrementally accumulate into the total correlation buffers
+            # This is mathematically identical to running it all at once!
+            # TO THESE:
+            XtX_total.add_(torch.bmm(X_b.transpose(1, 2), X_b))
+            XtY_total.add_(torch.bmm(X_b.transpose(1, 2), Y_b))
+            
 
-        X_b = X.permute(1, 0, 2)       # (B, T', R)
-        Y_b = Y_exp.permute(1, 0, 2)   # (B, T', O)
-
-        XtX = torch.bmm(X_b.transpose(1, 2), X_b)   # (B, R, R)
-        XtY = torch.bmm(X_b.transpose(1, 2), Y_b)   # (B, R, O)
-
+        # 4. Apply Tikhonov regularization and solve the accumulated global system
         I = torch.eye(self.reservoir_dim, device=self.device, dtype=self.dtype).unsqueeze(0)
-        A = XtX + alpha * I
+        A = XtX_total + alpha * I
 
         try:
-            solution = torch.linalg.solve(A, XtY)   # (B, R, O)
+            solution = torch.linalg.solve(A, XtY_total)   # (B, R, O)
         except torch.linalg.LinAlgError:
             print("Warning: solve failed, falling back to lstsq.")
-            solution = torch.linalg.lstsq(A, XtY).solution
+            solution = torch.linalg.lstsq(A, XtY_total).solution
 
+        # 5. Overwrite readout layer parameters
         with torch.no_grad():
             if not self.batched:
                 self.readout.weight.copy_(solution.squeeze(0).T)
                 if self.readout.bias is not None:
                     self.readout.bias.zero_()
             else:
-                self.W_out = solution.transpose(1, 2)   # (B, O, R)
+                self.W_out.copy_(solution.transpose(1, 2))
                 self.b_out.zero_()
-
-        print("Readout training complete.")
 
     # ------------------------------------------------------------------
     # Predict
@@ -380,38 +427,141 @@ class Reservoir(nn.Module):
                  lr: float,
                  criterion_class: Type[nn.Module] = nn.MSELoss,
                  optimizer_class: Type[optim.Optimizer] = optim.Adam,
-                 print_every: int = 10) -> torch.Tensor:
+                 print_every: int = 10):
         """
         Fine-tunes the entire model via backpropagation.
         Single mode only — batched mode uses train_readout for analytical fitting.
+        TODO: IMPLEMENTATION
         """
-        if self.batched:
-            raise RuntimeError("finetune() is for single-config mode only. "
-                               "Use train_readout() for batched sweeps.")
 
-        if not self.W_in.requires_grad or not self.W.requires_grad:
-            print("Warning: reservoir weights are frozen. Call unfreeze_reservoir() first.")
+    # ------------------------------------------------------------------
+    # In-Class Hyperparameter Optimization Routine
+    # ------------------------------------------------------------------
 
-        inputs  = inputs.to(self.device, self.dtype)
-        targets = targets.to(self.device, self.dtype)
+    def optimize(self,
+                 X_train: torch.Tensor,
+                 Y_train: torch.Tensor,
+                 X_val: torch.Tensor,
+                 Y_val: torch.Tensor,
+                 metric_fn: Callable,
+                 n_trials: int = 100,
+                 batch_size: int = 10,
+                 direction: str = "minimize",
+                 warmup: int = 100,
+                 alpha: float = 1e-5) -> dict:
+        """
+        Optimizes the reservoir's continuous hyperparameters using an external metric function.
+        After optimization, updates this specific instance with the best parameters and weights.
 
-        criterion = criterion_class()
-        #optimizer = optimizer_class(self.parameters(), lr=lr)
-        losses    = torch.zeros(epochs, device=self.device)
+        Args:
+            X_train, Y_train: Training sequence tensors.
+            X_val, Y_val: Validation sequence tensors.
+            metric_fn: Injected evaluation function from your toolkit (chaos_utils).
+            n_trials: Total optimization steps.
+            batch_size: Number of configurations evaluated in parallel on the GPU.
+            direction: "minimize" or "maximize" depending on the metric_fn.
+            warmup: Number of initial transient timesteps to discard.
+            alpha: Tikhonov regularization factor for train_readout.
+        """
+        import optuna
+        sampler = optuna.samplers.TPESampler()
 
-        self.train()
-        for epoch in range(epochs):
-            #optimizer.zero_grad()
-            output = self(inputs, reset_state=True)
-            loss   = criterion(output, targets)
-            loss.backward()
-            #optimizer.step()
-            losses[epoch] = loss.item()
-            if (epoch + 1) % print_every == 0 or epoch == epochs - 1:
-                print(f'Finetune Epoch {epoch+1}/{epochs}, Loss: {loss.item():.6f}')
+        # Enforce that training/validation tensors match the model's dtype and device
+        X_train = X_train.to(self.device, self.dtype)
+        Y_train = Y_train.to(self.device, self.dtype)
+        X_val = X_val.to(self.device, self.dtype)
+        Y_val = Y_val.to(self.device, self.dtype)
 
-        self.eval()
-        return losses
+        study = optuna.create_study(direction=direction, sampler=sampler)
+        num_batches = int(np.ceil(n_trials / batch_size))
 
-    def best_hyperparameters(self):
-        pass
+        print(f"[{type(self).__name__}] Starting in-class optimization using '{metric_fn.__name__}' ({direction} mode)...")
+
+        for b_idx in range(num_batches):
+            trials = [study.ask() for _ in range(min(batch_size, n_trials - len(study.trials)))]
+            if not trials:
+                break
+
+            # 1. Collect hyperparameter sweeps from Optuna
+            sr_list, lr_list, is_list = [], [], []
+            for trial in trials:
+                sr_list.append(trial.suggest_float("spectral_radius", 0.1, 1.5, step=0.01))
+                lr_list.append(trial.suggest_float("leak_rate", 0.05, 1.0, step=0.05))
+                is_list.append(trial.suggest_float("input_scaling", 0.1, 1.0, step=0.01))
+
+            # 2. Instantiate a temporary batched Reservoir using this instance as a blueprint
+            # Topologically similar to sweep
+            search_batch = Reservoir(
+                input_dim=self.input_dim,
+                reservoir_dim=self.reservoir_dim,
+                output_dim=self.output_dim,
+                spectral_radius=np.array(sr_list),
+                leak_rate=np.array(lr_list),
+                input_scaling=np.array(is_list),
+                sparsity=self.sparsity,
+                noise_level=self.noise_level,
+                activation=self.activation,
+                device=self.device,
+                dtype=self.dtype
+            )
+
+            # 3. Fit readout systems simultaneously across the batch
+            search_batch.train_readout(inputs=X_train, targets=Y_train, warmup=warmup, alpha=alpha)
+
+            # 4. Evaluate predictions on validation sequence [Shape: (T, B, O)]
+            search_batch.eval()
+            with torch.no_grad():
+                val_predictions = search_batch(X_val, reset_state=True)
+
+            # 5. Score slices using your injected custom metric function
+            for i, trial in enumerate(trials):
+                pred_slice = val_predictions[:, i, :]
+                
+                # Dynamic format catch: handle if your chaos_utils expect numpy arrays or raw tensors
+                try:
+                    score = metric_fn(Y_val, pred_slice)
+                except TypeError:
+                    # Fallback if the function natively requires numpy arrays
+                    score = metric_fn(Y_val.cpu().numpy(), pred_slice.cpu().numpy())
+
+                study.tell(trial, score)
+
+        print(f"Optimization complete! Best Parameters: {study.best_params}")
+
+        # --- UPDATE THE CURRENT INSTANCE STATE ---
+        print(f"Re-initializing current instance weights with the optimal configuration...")
+        
+        # Turn off batch mode flags on this specific instance
+        self.batched = False
+        self.B = 1
+        
+        # Update your buffers to the optimal scalars found by Optuna
+        self.register_buffer("spectral_radii", torch.tensor([study.best_params["spectral_radius"]], device=self.device, dtype=self.dtype))
+        self.register_buffer("leak_rates", torch.tensor([study.best_params["leak_rate"]], device=self.device, dtype=self.dtype))
+        self.register_buffer("input_scalings", torch.tensor([study.best_params["input_scaling"]], device=self.device, dtype=self.dtype))
+
+        # Re-generate clean, single-mode matrices scaled to the exact winning dimensions
+        W_in_opt = (torch.rand(1, self.reservoir_dim, self.input_dim, device=self.device, dtype=self.dtype) * 2 - 1)
+        W_in_opt = W_in_opt * self.input_scalings[:, None, None]
+
+        W_opt = torch.rand(1, self.reservoir_dim, self.reservoir_dim, device=self.device, dtype=self.dtype) * 2 - 1
+        mask = (torch.rand_like(W_opt) > self.sparsity).to(self.dtype)
+        W_opt = W_opt * mask
+
+        eigs = torch.linalg.eigvals(W_opt)
+        current_sr = torch.max(eigs.abs(), dim=-1).values.clamp(min=1e-9)
+        W_opt = W_opt * (self.spectral_radii / current_sr)[:, None, None]
+
+        # Overwrite the base parameter weights
+        self.W_in = nn.Parameter(W_in_opt, requires_grad=False)
+        self.W = nn.Parameter(W_opt, requires_grad=False)
+
+        # Build a single-mode linear readout layer instead of the batched tensor buffer
+        self.readout = nn.Linear(self.reservoir_dim, self.output_dim, device=self.device, dtype=self.dtype)
+        
+        # Train this optimized single configuration one final time so the model is ready to predict immediately
+        self.train_readout(inputs=X_train, targets=Y_train, warmup=warmup, alpha=alpha)
+        
+        return study.best_params
+
+
