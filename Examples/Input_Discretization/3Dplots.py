@@ -12,13 +12,13 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
 path = "Examples\\Input_Discretization\\results\\Chaotic\\"
-system_name = "ThomasLHS"
+system_name = "LorenzLHS"
 system_path = path + system_name
 
 if not os.path.exists("Examples/Input_Discretization/Plots/3DPlots/" + system_name):
     os.makedirs("Examples/Input_Discretization/Plots/3DPlots/"+ system_name)
 
-file_path = system_path + "/" + "100.0.pkl"
+file_path = system_path + "/" + "50.0.pkl"
 
 with open(file_path, "rb") as f:
     results = pickle.load(f)
@@ -55,14 +55,16 @@ else:
 metrics_dict = {
     "KL Divergence": [chaos_utils.kl_divergence(r["true_value"], r["predictions"]) for r in results],
     "JS Divergence": [chaos_utils.js_divergence(r["true_value"], r["predictions"]) for r in results],
-    "RMSE": [utils.RMSE(r["true_value"], r["predictions"]) for r in results]
+    "RMSE": [utils.RMSE(r["true_value"], r["predictions"]) for r in results],
+    "Symmetric KL": [chaos_utils.symmetric_kl(r["true_value"], r["predictions"]) for r in results],
+    "PSD Error": [chaos_utils.psd_error(r["true_value"], r["predictions"])[0] for r in results]
 }
 
-viz.plot_multidimensional_3d(
+viz.plot_multidimensional_3d_js(
     results, 
-    "Thomas-LHS", 
-    pp = 10, 
+    system_name=system_name, 
+    pp = 50, 
     metrics_dict = metrics_dict, 
-    save_html=False, 
-    path="Examples/Input_Discretization/Plots/3DPlots/" + system_name + "/"
-).show()
+    save_html=True, 
+    path="Examples/Input_Discretization/Plots/3DPlots/" 
+)
