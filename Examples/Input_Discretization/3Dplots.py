@@ -13,12 +13,13 @@ from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
 path = "Examples\\Input_Discretization\\results\\Chaotic\\"
 system_name = "LorenzLHS"
+PP = 75
 system_path = path + system_name
 
 if not os.path.exists("Examples/Input_Discretization/Plots/3DPlots/" + system_name):
     os.makedirs("Examples/Input_Discretization/Plots/3DPlots/"+ system_name)
 
-file_path = system_path + "/" + "50.0.pkl"
+file_path = system_path + "/" + str(PP) + ".0.pkl"
 
 with open(file_path, "rb") as f:
     results = pickle.load(f)
@@ -49,7 +50,7 @@ if os.path.exists(legend_path):
     )
 else:
     print("WARNING: Heatmap legend JSON not found! Indices will remain misaligned.")
-    print("Please run your heatmap generation script first to generate the metadata.")
+    print("Run heatmap generation script first to generate the metadata.")
 # ==============================================================================
 
 metrics_dict = {
@@ -60,10 +61,10 @@ metrics_dict = {
     "PSD Error": [chaos_utils.psd_error(r["true_value"], r["predictions"])[0] for r in results]
 }
 
-viz.plot_multidimensional_3d_js(
+viz.plot_multidimensional_3d(
     results, 
     system_name=system_name, 
-    pp = 50, 
+    pp = PP, 
     metrics_dict = metrics_dict, 
     save_html=True, 
     path="Examples/Input_Discretization/Plots/3DPlots/" 
