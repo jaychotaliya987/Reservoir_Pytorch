@@ -27,6 +27,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+METRIC_CONFIGS = {
+    "LyapunovTime": {"cmap": "viridis",    "plotly_scale": "viridis"},
+    "KLDivergence": {"cmap": "viridis_r",  "plotly_scale": "viridis_r"},
+    "JSDivergence": {"cmap": "viridis_r",  "plotly_scale": "viridis_r"},
+    "RMSE":         {"cmap": "plasma_r",   "plotly_scale": "plasma_r"},
+    "PSD Errors":   {"cmap": "inferno",    "plotly_scale": "inferno"},
+    "Cos_Sim":      {"cmap": "RdBu_r",     "plotly_scale": "RdBu"}, # Plotly natively reverses differently
+}
 
 def make_param_combo(x: Any) -> Optional[tuple]:
     """
@@ -65,10 +73,10 @@ def _compute_entry_metrics(entry: dict, ppp: float, selection: int) -> Optional[
 
     try:
         lyap         = chaos_utils.lyapunov_time(truth=true_val, predictions=preds)
-        skl           = chaos_utils.symmetric_kl(true_val, preds, bins=20)  # bins=100 → 20: 125× less work in histogramdd
+        skl           = chaos_utils.symmetric_kl(true_val, preds)  # bins=100 → 20: 125× less work in histogramdd
         psd, cos_sim = chaos_utils.psd_error(true_val, preds)
         rmse         = utils.RMSE(true_val, preds)
-        jsdiv        = chaos_utils.js_divergence(true_val, preds, bins=20)
+        jsdiv        = chaos_utils.js_divergence(true_val, preds)
     except Exception as e:
         logger.warning(f"Metric computation failed: {e}")
         return None
@@ -231,9 +239,12 @@ def plot_and_save_heatmap(
 
     fig, ax = plt.subplots(figsize=(16, 7), layout="tight")
 
+    # Fetch configured colormap with a graceful fallback
+    metric_cfg = METRIC_CONFIGS.get(metric, {"cmap": "viridis"})
+
     cax = ax.imshow(
         heatmap_matrix,
-        cmap="inferno",
+        cmap=metric_cfg["cmap"],  # Dynamic assignment
         aspect="auto",
         origin="lower",
         interpolation="nearest",
@@ -308,13 +319,6 @@ def process_single_location(
             logger.warning(f"No data extracted from {input_path.name}")
             return
     # --------------------------------------------------------------------------
-    print(f"Total rows in df: {len(df)}")
-    print(f"Unique ppp values: {df['ppp'].nunique()}")
-    print(f"Unique param_combos: {df['param_combo'].nunique()}")
-    print(f"Rows per ppp (should be ~1500):")
-    print(df.groupby('ppp')['param_combo'].nunique())
-
-
     for metric in target_metrics:
         logger.info(f"Plotting: {metric}")
         plot_and_save_heatmap(df, metric, folder_name, output_path)
@@ -434,10 +438,12 @@ def plot_interactive_heatmap(
         row_hover = []
         for col_idx, combo in enumerate(param_combos):
             value = heatmap_matrix[row_idx, col_idx]
+            PointsPerPeriod = ppp
             params_str = "<br>".join(f"  {k}: {v}" for k, v in combo)
             cell_text = (
                 f"<b>{metric}:</b> {value:.6f}<br>"
-                f"<b>ppp:</b> {ppp:.2f}<br>"
+                f"<b>Parameter Index:</b> {col_idx}<br>"
+                f"<b>Points per Period:</b> {PointsPerPeriod:.2f}<br>"
                 f"<b>Parameters:</b><br>{params_str}"
             )
             row_hover.append(cell_text)
@@ -445,9 +451,10 @@ def plot_interactive_heatmap(
 
     # --- Log scale for RMSE / PSD --------------------------------------------
     plot_matrix = heatmap_matrix.copy()
-    colorscale  = "inferno"
+    metric_cfg = METRIC_CONFIGS.get(metric, {"plotly_scale": "viridis"})
+    colorscale = metric_cfg["plotly_scale"]
     colorbar_title = metric
-
+    
     if metric in ["PSD Errors", "RMSE"]:
         positive_mask = plot_matrix > 0
         if positive_mask.any():
@@ -496,7 +503,7 @@ def plot_interactive_heatmap(
         ),
     )
 
-    # Save as standalone HTML — no server or Python process needed to open it
+    # Save as HTML
     save_dir = output_base_dir / folder_name
     save_dir.mkdir(parents=True, exist_ok=True)
     output_file = save_dir / f"{metric.lower().replace(' ', '_')}_interactive.html"
@@ -512,4 +519,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         process_single_location(sys.argv[1])
     else:
-        process_single_location("Examples/Input_Discretization/results/Chaotic/LorenzLHS", force_recompute=True)
+        process_single_location("Examples/Input_Discretization/results/Chaotic/HalvorsenLHS", force_recompute=True)
+        
