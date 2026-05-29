@@ -4,12 +4,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 
 import torch
 import numpy as np
+import optuna
 from reservoirgrid.helpers import chaos_utils  
 from reservoirgrid.helpers import utils  
 from reservoirgrid.models.Reservoir import Reservoir
 from reservoirgrid.helpers import viz
 
-dataset = np.load("reservoirgrid/datasets/Chaotic/Lorenz.npy", allow_pickle=True)
+dataset = np.load("reservoirgrid/datasets/Chaotic/Thomas.npy", allow_pickle=True)
 dataset = utils.normalize_data(dataset[15][1])
 
 X_train, X_val, Y_train, Y_val = utils.split(dataset) 
@@ -21,11 +22,12 @@ best_params = model.optimize(
     Y_train=Y_train,
     X_val=X_val,
     Y_val=Y_val,
-    metric_fn=utils.RMSE,
-    #metric_fn=chaos_utils.js_divergence,
+    sampler=optuna.samplers.CmaEsSampler(),
+    #metric_fn=utils.RMSE,
+    metric_fn=chaos_utils.js_divergence,
     direction="minimize",
-    n_trials=125,
-    batch_size=25,
+    n_trials=128,
+    batch_size=64,
 )
 
 predictions = model.predict(initial_input=Y_train, steps=len(Y_val))
