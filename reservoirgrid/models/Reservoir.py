@@ -26,6 +26,7 @@ Prebuilt weights mode (sweep optimisation):
 import torch
 from torch import nn
 from torch import optim
+import optuna
 
 from typing import Optional, Callable, Type, Union, Dict
 import numpy as np
@@ -496,12 +497,14 @@ class Reservoir(nn.Module):
                  Y_train: torch.Tensor,
                  X_val: torch.Tensor,
                  Y_val: torch.Tensor,
+                 sampler: optuna.samplers.BaseSampler,
                  metric_fn: Callable,
                  n_trials: int = 100,
                  batch_size: int = 10,
                  direction: str = "minimize",
                  warmup: int = 100,
-                 alpha: float = 1e-5) -> dict:
+                 alpha: float = 1e-5
+                ) -> dict:
         """
         Executes an in-class optimization search to identify elite performance parameters.
 
@@ -520,12 +523,12 @@ class Reservoir(nn.Module):
             direction (str): Optimization objective logic selection. "minimize" or "maximize". Defaults to "minimize".
             warmup (int): Transient initial sequences skipped over during analytical training steps. Defaults to 100.
             alpha (float): Ridge (Tikhonov) scaling regularization constant. Defaults to 1e-5.
-
+            sampler (optuna.samplers.BaseSampler): Optuna sampler instance. Defaults to None.
         Returns:
             dict: Key-value attributes mapping the discovered optimal parameter configuration.
         """
-        import optuna
-        sampler = optuna.samplers.TPESampler()
+        
+        sampler = sampler or optuna.samplers.CmaEsSampler()
 
         X_train = X_train.to(self.device, self.dtype)
         Y_train = Y_train.to(self.device, self.dtype)
