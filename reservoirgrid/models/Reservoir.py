@@ -11,10 +11,11 @@ This class implements a reservoir computing model with the following features:
 - Reservoir state and weights visualization and control
 - Device management (CPU/GPU)
 
-Batched mode:
+Unified Batched Architecture:
+    All operations are treated as batched (B >= 1) utilizing torch.bmm and torch.einsum.
     Pass 1D array/tensor for spectral_radius, leak_rate, input_scaling
     to run B reservoir configs in parallel (e.g. for hyperparameter sweeps).
-    Single config (scalar args) behaviour is unchanged.
+    For a single configuration, pass scalars, and the model will default to B=1.
 
 Prebuilt weights mode (sweep optimisation):
     Pass prebuilt_weights={"W_in": tensor, "W": tensor} to skip random
@@ -27,31 +28,19 @@ from torch import nn
 from torch import optim
 
 from typing import Optional, Callable, Type, Union, Dict
-
 import numpy as np
 
 # Default device (can be overridden)
 _DEFAULT_DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 _DEFAULT_DTYPE = torch.float32
+
 class Reservoir(nn.Module):
     """
-    Initialize the Reservoir class.
-    Args:
-        :param input_dim: Input dimensions. Ex: Lorenz has input_dim = 3
-        :param reservoir_dim: Number of reservoir neurons.
-        :param output_dim: Output dimensions. Ex: Lorenz has output_dim = 3
-        :param spectral_radius: Scalar for single config, 1D array/tensor for batched mode.
-        :param leak_rate: Scalar for single config, 1D array/tensor for batched mode.
-        :param sparsity: 0-1, Controls the number of connections between reservoir neurons.
-        :param input_scaling: Scalar for single config, 1D array/tensor for batched mode.
-        :param noise_level: Noise level for the reservoir state update.
-        :param activation: Activation function, defaults to tanh.
-        :param device: Device to run the model on.
-        :param dtype: Data type, defaults to float32.
-        :param prebuilt_weights: Optional dict {"W_in": tensor, "W": tensor}.
-                                 If provided, skips all weight generation and eigval
-                                 computation. Tensors must already be on the correct
-                                 device and dtype. Used by parameter_sweep.
+    A unified batched Echo State Network (ESN) Reservoir Computing model.
+
+    This class supports executing B parallel reservoir configurations simultaneously 
+    on the GPU/CPU to facilitate high-throughput hyperparameter sweeps and optimizations.
+    All math blocks and internal operations default to batch tensor operations.
     """
     def __init__(self,
                  input_dim: int,
@@ -66,6 +55,27 @@ class Reservoir(nn.Module):
                  device: Optional[Union[str, torch.device]] = None,
                  dtype: torch.dtype = _DEFAULT_DTYPE,
                  prebuilt_weights: Optional[Dict[str, torch.Tensor]] = None):
+        """
+        Initializes the Reservoir model and sets up configuration parameters.
+
+        Args:
+            input_dim (int): Dimensionality of the input timeseries data.
+            reservoir_dim (int): Number of internal hidden recurrent neurons.
+            output_dim (int): Dimensionality of the target/output timeseries data.
+            spectral_radius (Union[float, np.ndarray, torch.Tensor]): Target spectral radius 
+                for the reservoir weights. Scalar or 1D array/tensor of shape (B,). Defaults to 0.9.
+            leak_rate (Union[float, np.ndarray, torch.Tensor]): Leaky integration parameter 
+                governing state retention. Scalar or 1D array/tensor of shape (B,). Defaults to 0.3.
+            sparsity (float): Proportion of zero-valued weights in the reservoir matrix. Defaults to 0.9.
+            input_scaling (Union[float, np.ndarray, torch.Tensor]): Uniform scaling multiplier 
+                for input weights. Scalar or 1D array/tensor of shape (B,). Defaults to 1.0.
+            noise_level (float): Standard deviation of Gaussian noise injected into state updates. Defaults to 0.01.
+            activation (Callable): Non-linear element-wise activation function. Defaults to torch.tanh.
+            device (Optional[Union[str, torch.device]]): Target torch device context. Defaults to CPU/GPU auto-select.
+            dtype (torch.dtype): Tensor precision data type. Defaults to torch.float32.
+            prebuilt_weights (Optional[Dict[str, torch.Tensor]]): External matrices dictionary 
+                containing pre-initialized "W_in" and "W" tensors to skip creation steps. Defaults to None.
+        """
         super(Reservoir, self).__init__()
 
         self.input_dim = input_dim
@@ -77,7 +87,6 @@ class Reservoir(nn.Module):
         self.device = torch.device(device) if device else _DEFAULT_DEVICE
         self.dtype = dtype
 
-        # --- Detect batched vs single mode ---
         def _to_tensor(val):
             if isinstance(val, torch.Tensor):
                 return val.to(self.device, self.dtype)
@@ -89,8 +98,7 @@ class Reservoir(nn.Module):
         lr_t = _to_tensor(leak_rate)
         is_t = _to_tensor(input_scaling)
 
-        self.batched = sr_t.numel() > 1
-        self.B       = sr_t.numel()
+        self.B = sr_t.numel()
 
         self.register_buffer("spectral_radii", sr_t)
         self.register_buffer("leak_rates",     lr_t)
@@ -98,14 +106,12 @@ class Reservoir(nn.Module):
 
         # --- Parameter Validation ---
         assert torch.all(lr_t >= 0) and torch.all(lr_t <= 1), "Leak rate must be in [0, 1]"
-        assert 0.0 <= sparsity <= 1.0,                         "Sparsity must be in [0, 1]"
-        assert torch.all(sr_t >= 0),                           "Spectral radius must be non-negative"
-        assert reservoir_dim > 0,                              "Reservoir dimension must be positive"
+        assert 0.0 <= sparsity <= 1.0,                        "Sparsity must be in [0, 1]"
+        assert torch.all(sr_t >= 0),                          "Spectral radius must be non-negative"
+        assert reservoir_dim > 0,                             "Reservoir dimension must be positive"
 
         # --- Initialize Weights ---
         if prebuilt_weights is not None:
-            # Fast path: weights already built externally, just register them.
-            # No random generation, no eigval computation.
             W_in = prebuilt_weights["W_in"].to(self.device, self.dtype)
             W    = prebuilt_weights["W"].to(self.device, self.dtype)
             assert W_in.shape == (self.B, reservoir_dim, input_dim), \
@@ -113,7 +119,6 @@ class Reservoir(nn.Module):
             assert W.shape == (self.B, reservoir_dim, reservoir_dim), \
                 f"prebuilt W shape mismatch: expected {(self.B, reservoir_dim, reservoir_dim)}, got {W.shape}"
         else:
-            # Normal path: generate weights from scratch.
             W_in = (torch.rand(self.B, reservoir_dim, input_dim, device=self.device, dtype=dtype) * 2 - 1)
             W_in = W_in * is_t[:, None, None]
 
@@ -133,16 +138,13 @@ class Reservoir(nn.Module):
         self.W_in = nn.Parameter(W_in, requires_grad=False)   # (B, R, I)
         self.W    = nn.Parameter(W,    requires_grad=False)   # (B, R, R)
 
-        # --- Readout layer ---
-        if not self.batched:
-            self.readout = nn.Linear(reservoir_dim, output_dim, device=self.device, dtype=dtype)
-        else:
-            self.register_buffer(
-                "W_out", torch.zeros(self.B, output_dim, reservoir_dim, device=self.device, dtype=dtype)
-            )
-            self.register_buffer(
-                "b_out", torch.zeros(self.B, output_dim, device=self.device, dtype=dtype)
-            )
+        # --- Readout layer buffers (Replaces nn.Linear) ---
+        self.register_buffer(
+            "W_out", torch.zeros(self.B, output_dim, reservoir_dim, device=self.device, dtype=dtype)
+        )
+        self.register_buffer(
+            "b_out", torch.zeros(self.B, output_dim, device=self.device, dtype=dtype)
+        )
 
         # --- Initial reservoir state (B, R) ---
         self.register_buffer(
@@ -155,8 +157,15 @@ class Reservoir(nn.Module):
     # ------------------------------------------------------------------
 
     def _readout(self, states: torch.Tensor) -> torch.Tensor:
-        if not self.batched:
-            return self.readout(states)
+        """
+        Maps collected hidden reservoir internal states to output prediction space.
+
+        Args:
+            states (torch.Tensor): Collected internal activations of shape (T, B, R).
+
+        Returns:
+            torch.Tensor: Readout model predictions of shape (T, B, O).
+        """
         return torch.einsum("tbr,bor->tbo", states, self.W_out) + self.b_out
 
     # ------------------------------------------------------------------
@@ -165,18 +174,17 @@ class Reservoir(nn.Module):
 
     def forward(self, u: torch.Tensor, reset_state: bool = True) -> torch.Tensor:
         """
-        Forward pass through the reservoir and readout layer.
+        Executes a sequential step-by-step forward pass through the hidden reservoir.
+
+        Loops across the temporal length, projects external signals via W_in, computes
+        recurrent updates using W, accumulates with leak parameters, and maps results to W_out.
 
         Args:
-            u (torch.Tensor): Input sequence.
-                Single mode:  (T, I)  or (T, 1, I)
-                Batched mode: (T, I)  — same input broadcast to all B configs
-            reset_state (bool): Reset reservoir state before processing.
+            u (torch.Tensor): External driving sequential input. Shape (T, I) or (T, 1, I).
+            reset_state (bool): If True, clears past hidden state memory vectors to zero. Defaults to True.
 
         Returns:
-            torch.Tensor:
-                Single mode:  (T, O)
-                Batched mode: (T, B, O)
+            torch.Tensor: Evaluated outputs matching all B parallel setups. Shape (T, B, O).
         """
         u = u.to(self.device, self.dtype)
 
@@ -189,12 +197,12 @@ class Reservoir(nn.Module):
                 self.B, self.reservoir_dim, device=self.device, dtype=self.dtype
             )
 
-        # Preallocate (T, B, R) — no list, no stack
+        # Preallocate (T, B, R)
         self.reservoir_states = torch.empty(
             T, self.B, self.reservoir_dim, device=self.device, dtype=self.dtype
         )
 
-        # Preallocate full noise tensor — one kernel launch
+        # Preallocate full noise tensor
         noise_all = torch.randn(
             T, self.B, self.reservoir_dim, device=self.device, dtype=self.dtype
         ) * self.noise_level
@@ -209,12 +217,7 @@ class Reservoir(nn.Module):
             self.reservoir_states_buf = (1.0 - leak) * self.reservoir_states_buf + leak * activated
             self.reservoir_states[t] = self.reservoir_states_buf
 
-        output = self._readout(self.reservoir_states)
-
-        if not self.batched:
-            output = output.squeeze(1)
-
-        return output
+        return self._readout(self.reservoir_states)
 
     # ------------------------------------------------------------------
     # Train readout
@@ -226,16 +229,21 @@ class Reservoir(nn.Module):
                       alpha: float = 1e-6,
                       chunk_size: int = 5000):
         """
-        Train the readout layer using Chunked (Streaming) Ridge Regression.
-        Prevents VRAM OOM errors on very long sequences by accumulating 
-        the correlation matrices incrementally.
-        
+        Trains the linear readout layers using Chunked (Streaming) Ridge Regression.
+
+        Processes long inputs iteratively in window chunks to maintain a safe VRAM 
+        footprint. Collects and updates the global analytical Tikhonov system covariance 
+        matrices ($X^TX$, $X^TY$) before optimizing with structural linear solver calls.
+
         Args:
-            inputs: (T, I) or (T, 1, I)
-            targets: (T, O)
-            warmup: Number of initial timesteps to discard.
-            alpha: Tikhonov regularization factor.
-            chunk_size: Number of timesteps processed per GPU kernel launch.
+            inputs (torch.Tensor): Training sequential input sequence. Shape (T, I) or (T, 1, I).
+            targets (torch.Tensor): Corresponding ground-truth target sequence. Shape (T, O).
+            warmup (int): Transient initial timesteps to discard before parameter fitting. Defaults to 0.
+            alpha (float): Ridge (Tikhonov) L2 regularization strength factor. Defaults to 1e-6.
+            chunk_size (int): Temporal size of windows split for sequential execution. Defaults to 5000.
+
+        Returns:
+            None: Modifies the internal object state buffers `W_out` and `b_out` in-place.
         """
         inputs  = inputs.to(self.device, self.dtype)
         targets = targets.to(self.device, self.dtype)
@@ -246,32 +254,27 @@ class Reservoir(nn.Module):
         T = inputs.shape[0]
         
         # 1. Preallocate running accumulators directly on the GPU
-        # XtX shape: (B, R, R) | XtY shape: (B, R, O)
         XtX_total = torch.zeros(self.B, self.reservoir_dim, self.reservoir_dim, 
                                 device=self.device, dtype=self.dtype)
         XtY_total = torch.zeros(self.B, self.reservoir_dim, self.output_dim, 
                                 device=self.device, dtype=self.dtype)
         
-        reset_state = True  # Only reset state on the very first chunk
+        reset_state = True
 
         # 2. Stream through the time dimension in chunks
         for start in range(0, T, chunk_size):
             end = min(start + chunk_size, T)
             
-            # Fast path: If the entire chunk falls within the warmup period,
-            # just advance the reservoir state without calculating correlations.
             if end <= warmup:
                 with torch.no_grad():
                     self.forward(inputs[start:end], reset_state=reset_state)
                 reset_state = False
                 continue
             
-            # Compute reservoir states for this chunk
             with torch.no_grad():
                 self.forward(inputs[start:end], reset_state=reset_state)
-            reset_state = False  # Keep the state alive for subsequent chunks
+            reset_state = False 
             
-            # Calculate how much of this specific chunk is valid past the warmup threshold
             chunk_warmup = max(0, warmup - start)
             
             X_chunk = self.reservoir_states[chunk_warmup:]  # (T_chunk_eff, B, R)
@@ -281,18 +284,14 @@ class Reservoir(nn.Module):
             if T_chunk_eff == 0:
                 continue
                 
-            # Expand and permute to align configurations for batch matrix multiplication
             Y_chunk_exp = Y_chunk.unsqueeze(1).expand(T_chunk_eff, self.B, self.output_dim)
             X_b = X_chunk.permute(1, 0, 2)       # (B, T_chunk_eff, R)
             Y_b = Y_chunk_exp.permute(1, 0, 2)   # (B, T_chunk_eff, O)
             
             # 3. Incrementally accumulate into the total correlation buffers
-            # This is mathematically identical to running it all at once!
-            # TO THESE:
             XtX_total.add_(torch.bmm(X_b.transpose(1, 2), X_b))
             XtY_total.add_(torch.bmm(X_b.transpose(1, 2), Y_b))
             
-
         # 4. Apply Tikhonov regularization and solve the accumulated global system
         I = torch.eye(self.reservoir_dim, device=self.device, dtype=self.dtype).unsqueeze(0)
         A = XtX_total + alpha * I
@@ -305,13 +304,8 @@ class Reservoir(nn.Module):
 
         # 5. Overwrite readout layer parameters
         with torch.no_grad():
-            if not self.batched:
-                self.readout.weight.copy_(solution.squeeze(0).T)
-                if self.readout.bias is not None:
-                    self.readout.bias.zero_()
-            else:
-                self.W_out.copy_(solution.transpose(1, 2))
-                self.b_out.zero_()
+            self.W_out.copy_(solution.transpose(1, 2))
+            self.b_out.zero_()
 
     # ------------------------------------------------------------------
     # Predict
@@ -322,7 +316,20 @@ class Reservoir(nn.Module):
                 steps: int,
                 teacher_forcing_targets: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Autonomous prediction after warming up on initial_input.
+        Generates multi-step ahead autonomous sequence forecasts.
+
+        Warms up internal states with the `initial_input` sequence, and then rolls 
+        forward iteratively. The output at step $t$ is fed back as the input for step $t+1$, 
+        with optional override overrides if `teacher_forcing_targets` are provided.
+
+        Args:
+            initial_input (torch.Tensor): Prompting sequence for initial state warmup. Shape (T, I).
+            steps (int): Total sequence length iterations to run predictions autonomously.
+            teacher_forcing_targets (Optional[torch.Tensor]): Optional array containing ground truth
+                override targets for each loop step. Shape (Steps, O). Defaults to None.
+
+        Returns:
+            torch.Tensor: Compiled forecast output sequence array. Shape (Steps, B, O).
         """
         initial_input = initial_input.to(self.device, self.dtype)
         if initial_input.ndim == 3:
@@ -336,12 +343,7 @@ class Reservoir(nn.Module):
         with torch.no_grad():
             self.forward(initial_input, reset_state=True)
 
-            if not self.batched:
-                current = self.readout(self.reservoir_states_buf)
-            else:
-                current = (torch.einsum("br,bor->bo", self.reservoir_states_buf, self.W_out)
-                           + self.b_out)
-
+            current = (torch.einsum("br,bor->bo", self.reservoir_states_buf, self.W_out) + self.b_out)
             leak = self.leak_rates[:, None]
             predictions = []
 
@@ -351,12 +353,7 @@ class Reservoir(nn.Module):
                 activated      = self.activation(input_term + recurrent_term)
                 self.reservoir_states_buf = (1.0 - leak) * self.reservoir_states_buf + leak * activated
 
-                if not self.batched:
-                    pred = self.readout(self.reservoir_states_buf)
-                else:
-                    pred = (torch.einsum("br,bor->bo", self.reservoir_states_buf, self.W_out)
-                            + self.b_out)
-
+                pred = (torch.einsum("br,bor->bo", self.reservoir_states_buf, self.W_out) + self.b_out)
                 predictions.append(pred)
 
                 if teacher_forcing_targets is not None and step < teacher_forcing_targets.size(0):
@@ -366,18 +363,22 @@ class Reservoir(nn.Module):
                 else:
                     current = pred
 
-        result = torch.stack(predictions, dim=0)
-
-        if not self.batched:
-            result = result.squeeze(1)
-
-        return result
+        return torch.stack(predictions, dim=0)
 
     # ------------------------------------------------------------------
     # Reservoir control
     # ------------------------------------------------------------------
 
     def update_reservoir(self, u: torch.Tensor):
+        """
+        Manually forces/overwrites internal state buffer arrays with explicit user tensors.
+
+        Args:
+            u (torch.Tensor): Targeted hidden states replacement array. Shape (B, R).
+
+        Returns:
+            None
+        """
         print("Warning: `update_reservoir` will update the reservoir states manually.")
         self.reservoir_states_buf = u
         self.reservoir_states = torch.cat(
@@ -385,16 +386,38 @@ class Reservoir(nn.Module):
         )
 
     def freeze_reservoir(self):
+        """
+        Disables gradient computing tracks for input and recurrent weights.
+
+        Returns:
+            None
+        """
         self.W_in.requires_grad = False
         self.W.requires_grad    = False
         print("Reservoir weights (W_in, W) frozen.")
 
     def unfreeze_reservoir(self):
+        """
+        Enables gradient computing tracks for input and recurrent weights.
+
+        Returns:
+            None
+        """
         self.W_in.requires_grad = True
         self.W.requires_grad    = True
         print("Reservoir weights (W_in, W) unfrozen.")
 
     def reset_state(self, batch_size: int = 1):
+        """
+        Resets and clears active tracking internal hidden memory buffers back to zero.
+
+        Args:
+            batch_size (int): Size of structural dimension mapping configurations.
+                 If zero or negative, defaults back to the model's setup size `self.B`. Defaults to 1.
+
+        Returns:
+            None
+        """
         b = batch_size if batch_size > 0 else self.B
         self.reservoir_states_buf = torch.zeros(
             b, self.reservoir_dim, device=self.device, dtype=self.dtype
@@ -406,10 +429,30 @@ class Reservoir(nn.Module):
     # ------------------------------------------------------------------
 
     def save_model(self, path: str):
+        """
+        Serializes and exports model parameters and buffer states to disk.
+
+        Args:
+            path (str): File path string locating output target destination.
+
+        Returns:
+            None
+        """
         torch.save(self.state_dict(), path)
         print(f"Model saved to {path}")
 
     def load_model(self, path: str, map_location: Optional[Union[str, torch.device]] = None):
+        """
+        Imports and overwrites model weights/buffers using saved disk state snapshots.
+
+        Args:
+            path (str): File path string locating input target resource.
+            map_location (Optional[Union[str, torch.device]]): Execution device target mapping. 
+                Defaults to active model configuration device destination.
+
+        Returns:
+            None
+        """
         if map_location is None:
             map_location = self.device
         self.load_state_dict(torch.load(path, map_location=map_location))
@@ -417,7 +460,7 @@ class Reservoir(nn.Module):
         print(f"Model loaded from {path} to device {self.device}")
 
     # ------------------------------------------------------------------
-    # Finetune — single mode only
+    # Finetune
     # ------------------------------------------------------------------
 
     def finetune(self,
@@ -429,10 +472,21 @@ class Reservoir(nn.Module):
                  optimizer_class: Type[optim.Optimizer] = optim.Adam,
                  print_every: int = 10):
         """
-        Fine-tunes the entire model via backpropagation.
-        Single mode only — batched mode uses train_readout for analytical fitting.
-        TODO: IMPLEMENTATION
+        Fine-tunes internal parameters and readout buffers via optimization backpropagation.
+
+        Args:
+            inputs (torch.Tensor): Sequential input signals tensor.
+            targets (torch.Tensor): Target sequential truth alignment tensor.
+            epochs (int): Total validation gradient iteration cycles.
+            lr (float): Step multiplier value optimization rate.
+            criterion_class (Type[nn.Module]): Torch loss module implementation. Defaults to nn.MSELoss.
+            optimizer_class (Type[optim.Optimizer]): Torch gradient algorithm constructor. Defaults to optim.Adam.
+            print_every (int): Metric monitoring log frequency interval. Defaults to 10.
+
+        Returns:
+            None
         """
+        pass
 
     # ------------------------------------------------------------------
     # In-Class Hyperparameter Optimization Routine
@@ -450,23 +504,30 @@ class Reservoir(nn.Module):
                  warmup: int = 100,
                  alpha: float = 1e-5) -> dict:
         """
-        Optimizes the reservoir's continuous hyperparameters using an external metric function.
-        After optimization, updates this specific instance with the best parameters and weights.
+        Executes an in-class optimization search to identify elite performance parameters.
+
+        Uses parallel batched trial evaluation tasks powered by Optuna TPE samplers. 
+        Upon evaluation completion, automatically re-shapes and fits the instance into a 
+        single-configuration optimized model layout ($B=1$) using the discovered parameters.
 
         Args:
-            X_train, Y_train: Training sequence tensors.
-            X_val, Y_val: Validation sequence tensors.
-            metric_fn: Injected evaluation function from your toolkit (chaos_utils).
-            n_trials: Total optimization steps.
-            batch_size: Number of configurations evaluated in parallel on the GPU.
-            direction: "minimize" or "maximize" depending on the metric_fn.
-            warmup: Number of initial transient timesteps to discard.
-            alpha: Tikhonov regularization factor for train_readout.
+            X_train (torch.Tensor): Training series input tensor data. Shape (T_train, I).
+            Y_train (torch.Tensor): Training series labels/target alignment data. Shape (T_train, O).
+            X_val (torch.Tensor): Verification sequence input data used for scores. Shape (T_val, I).
+            Y_val (torch.Tensor): Verification validation target reference comparison data. Shape (T_val, O).
+            metric_fn (Callable): Quantitative valuation scorer algorithm injected to rate prediction paths.
+            n_trials (int): Global scale limit setting maximum parameter attempts. Defaults to 100.
+            batch_size (int): Total parallel trial variations executed concurrently. Defaults to 10.
+            direction (str): Optimization objective logic selection. "minimize" or "maximize". Defaults to "minimize".
+            warmup (int): Transient initial sequences skipped over during analytical training steps. Defaults to 100.
+            alpha (float): Ridge (Tikhonov) scaling regularization constant. Defaults to 1e-5.
+
+        Returns:
+            dict: Key-value attributes mapping the discovered optimal parameter configuration.
         """
         import optuna
         sampler = optuna.samplers.TPESampler()
 
-        # Enforce that training/validation tensors match the model's dtype and device
         X_train = X_train.to(self.device, self.dtype)
         Y_train = Y_train.to(self.device, self.dtype)
         X_val = X_val.to(self.device, self.dtype)
@@ -490,7 +551,6 @@ class Reservoir(nn.Module):
                 is_list.append(trial.suggest_float("input_scaling", 0.1, 1.0, step=0.01))
 
             # 2. Instantiate a temporary batched Reservoir using this instance as a blueprint
-            # Topologically similar to sweep
             search_batch = Reservoir(
                 input_dim=self.input_dim,
                 reservoir_dim=self.reservoir_dim,
@@ -516,12 +576,9 @@ class Reservoir(nn.Module):
             # 5. Score slices using your injected custom metric function
             for i, trial in enumerate(trials):
                 pred_slice = val_predictions[:, i, :]
-                
-                # Dynamic format catch: handle if your chaos_utils expect numpy arrays or raw tensors
                 try:
                     score = metric_fn(Y_val, pred_slice)
                 except TypeError:
-                    # Fallback if the function natively requires numpy arrays
                     score = metric_fn(Y_val.cpu().numpy(), pred_slice.cpu().numpy())
 
                 study.tell(trial, score)
@@ -531,20 +588,17 @@ class Reservoir(nn.Module):
         # --- UPDATE THE CURRENT INSTANCE STATE ---
         print(f"Re-initializing current instance weights with the optimal configuration...")
         
-        # Turn off batch mode flags on this specific instance
-        self.batched = False
+        # Unify batch to a single best config mapping to B=1
         self.B = 1
         
-        # Update your buffers to the optimal scalars found by Optuna
         self.register_buffer("spectral_radii", torch.tensor([study.best_params["spectral_radius"]], device=self.device, dtype=self.dtype))
         self.register_buffer("leak_rates", torch.tensor([study.best_params["leak_rate"]], device=self.device, dtype=self.dtype))
         self.register_buffer("input_scalings", torch.tensor([study.best_params["input_scaling"]], device=self.device, dtype=self.dtype))
 
-        # Re-generate clean, single-mode matrices scaled to the exact winning dimensions
-        W_in_opt = (torch.rand(1, self.reservoir_dim, self.input_dim, device=self.device, dtype=self.dtype) * 2 - 1)
+        W_in_opt = (torch.rand(self.B, self.reservoir_dim, self.input_dim, device=self.device, dtype=self.dtype) * 2 - 1)
         W_in_opt = W_in_opt * self.input_scalings[:, None, None]
 
-        W_opt = torch.rand(1, self.reservoir_dim, self.reservoir_dim, device=self.device, dtype=self.dtype) * 2 - 1
+        W_opt = torch.rand(self.B, self.reservoir_dim, self.reservoir_dim, device=self.device, dtype=self.dtype) * 2 - 1
         mask = (torch.rand_like(W_opt) > self.sparsity).to(self.dtype)
         W_opt = W_opt * mask
 
@@ -552,16 +606,13 @@ class Reservoir(nn.Module):
         current_sr = torch.max(eigs.abs(), dim=-1).values.clamp(min=1e-9)
         W_opt = W_opt * (self.spectral_radii / current_sr)[:, None, None]
 
-        # Overwrite the base parameter weights
         self.W_in = nn.Parameter(W_in_opt, requires_grad=False)
         self.W = nn.Parameter(W_opt, requires_grad=False)
 
-        # Build a single-mode linear readout layer instead of the batched tensor buffer
-        self.readout = nn.Linear(self.reservoir_dim, self.output_dim, device=self.device, dtype=self.dtype)
+        # Reset unified readout buffers for B=1
+        self.register_buffer("W_out", torch.zeros(self.B, self.output_dim, self.reservoir_dim, device=self.device, dtype=self.dtype))
+        self.register_buffer("b_out", torch.zeros(self.B, self.output_dim, device=self.device, dtype=self.dtype))
         
-        # Train this optimized single configuration one final time so the model is ready to predict immediately
         self.train_readout(inputs=X_train, targets=Y_train, warmup=warmup, alpha=alpha)
         
         return study.best_params
-
-
