@@ -34,7 +34,7 @@ def hyperopt_isinstance_patch(obj, class_or_tuple):
     return builtins.isinstance(obj, class_or_tuple)
 
 # Inject the patch directly into hyperopt's local module namespace
-hyperopt.pyll.base.isinstance = hyperopt_isinstance_patch
+setattr(hyperopt.pyll.base, "isinstance", hyperopt_isinstance_patch)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -163,6 +163,8 @@ best_result, trials_obj = research(
 )
 
 N_OPTIONS = [100, 200, 500, 1000]
+if not isinstance(best_result, dict):
+    raise RuntimeError("Expected best_result to be a dict")
 best = dict(best_result)
 best["N"] = N_OPTIONS[int(best["N"])]
 

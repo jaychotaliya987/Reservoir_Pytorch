@@ -103,12 +103,23 @@ def rpy_objective(dataset, config, *, N, sr, lr, input_scaling, ridge,
 
 t0 = time.perf_counter()
 
-rpy_best, _ = research(
+rpy_result = research(
     objective   = rpy_objective,
     dataset     = ((X_train_np, Y_train_np), (X_val_np, Y_val_np)),
     config_path = CONFIG_PATH,
     report_path = REPORT_PATH,
 )
+if rpy_result is None:
+    raise RuntimeError("ReservoirPy research did not return a best configuration.")
+
+if isinstance(rpy_result, tuple):
+    rpy_best = rpy_result[0]
+else:
+    rpy_best = rpy_result
+
+if rpy_best is None:
+    raise RuntimeError("ReservoirPy research returned an empty best configuration.")
+
 rpy_best["N"] = int(round(float(rpy_best["N"])))
 
 rpy_res   = RPyReservoir(units=rpy_best["N"],
