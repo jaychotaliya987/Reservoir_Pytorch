@@ -490,8 +490,7 @@ class Reservoir(nn.Module):
 
     # ------------------------------------------------------------------
     # In-Class Hyperparameter Optimization Routine
-    # ------------------------------------------------------------------
-
+    # -----------------------------------------------------------------
     def optimize(self,
                  X_train: torch.Tensor,
                  Y_train: torch.Tensor,
@@ -538,6 +537,15 @@ class Reservoir(nn.Module):
 
         print(f"[{type(self).__name__}] Starting in-class optimization using '{metric_fn.__name__}' ({direction} mode)...")
 
+        # --- Initialize Progress Bar Setup ---
+        try:
+            from tqdm import tqdm
+            pbar = tqdm(total=n_trials, desc="Optimizing Reservoir", unit="trial")
+            use_tqdm = True
+        except ImportError:
+            use_tqdm = False
+            print("Note: Install 'tqdm' via pip to get a visual progress bar indicator.")
+
         for b_idx in range(num_batches):
             trials = [study.ask() for _ in range(min(batch_size, n_trials - len(study.trials)))]
             if not trials:
@@ -582,6 +590,21 @@ class Reservoir(nn.Module):
                     score = metric_fn(Y_val.cpu().numpy(), pred_slice.cpu().numpy())
 
                 study.tell(trial, score)
+
+            # --- Update Progress Outputs ---
+            if use_tqdm:
+                try:
+                    pbar.set_postfix({"best_score": f"{study.best_value:.5f}"})
+                except ValueError:
+                    # Traps case where no trial completed successfully yet
+                    pbar.set_postfix({"best_score": "NaN"})
+                pbar.update(len(trials))
+            else:
+                current_best = study.best_value if len(study.trials) > 0 else "N/A"
+                print(f" -> Batch {b_idx + 1}/{num_batches} processed. Current Best Score: {current_best}")
+
+        if use_tqdm:
+            pbar.close()
 
         print(f"Optimization complete! Best Parameters: {study.best_params}")
 

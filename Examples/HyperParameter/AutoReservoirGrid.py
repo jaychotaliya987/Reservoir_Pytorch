@@ -21,15 +21,16 @@ best_params = model.optimize(
     Y_train=Y_train,
     X_val=X_val,
     Y_val=Y_val,
-    metric_fn=chaos_utils.js_divergence, 
+    metric_fn=utils.RMSE,
+    #metric_fn=chaos_utils.js_divergence,
     direction="minimize",
-    n_trials=500,
+    n_trials=125,
     batch_size=25,
 )
 
 predictions = model.predict(initial_input=Y_train, steps=len(Y_val))
 
-predictions = predictions.cpu().numpy()  
+predictions = predictions.cpu().numpy().squeeze(1)
 Y_val = Y_val.cpu().numpy()  
 
 print(chaos_utils.js_divergence(Y_val, predictions))
