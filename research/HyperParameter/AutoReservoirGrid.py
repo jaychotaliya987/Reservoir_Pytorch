@@ -23,7 +23,7 @@ best_params = model.optimize(
     metric_fn=chaos_utils.js_divergence,
     direction="minimize",
     n_trials=128,
-    batch_size=24,
+    batch_size=20,
 )
 
 predictions = model.predict(initial_input=Y_train, steps=len(Y_val))
