@@ -1,32 +1,47 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
+# ==========================================
+# IDEs and Editors
+# ==========================================
+.vscode/
+.idea/
+.vs/
+.spyproject/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+venv/
+.venv/
+env/
+
+# ==========================================
+# Python Cache (Global Rule)
+# ==========================================
+# This replaces all your manual __pycache__ lines cleanly
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Jupyter Notebooks
-.ipynb_checkpoints/
+# ==========================================
+# Heavy Research Results & Plots
+# ==========================================
+# Mapped from Examples/ to research/
+research/Input_Discretization/results/
+research/Weight_Landscape/results/
+research/HyperParameter/results_lorenz/rc_search/results/
 
-# IDEs
-.vscode/
-.idea/
-.vs/
+# Mapped plot directories
+research/Input_Discretization/Plots/3DPlots/
+research/Input_Discretization/Plots/HeatMaps/
 
-# Environments
-.venv/
-env/
-venv/
-
-# heavy research data and outputs
+# ==========================================
+# Datasets (From your source code)
+# ==========================================
+# Protects your 800MB local binary data bank
 src/reservoirgrid/datasets/**/*.npy
 src/reservoirgrid/datasets/**/*.csv
 src/reservoirgrid/datasets/**/*.CSV
-research/**/*.pkl
-research/**/*.png
-research/**/*.html
-research/**/*.CSV
-
-# Folders To Ignore, Big and clunky setup data. 
-research/HyperParameter/results_lorenz
-research/Input_Discretization/Plots/HeatMaps/
-research/Input_Discretization/Plots/3DPlots
