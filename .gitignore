@@ -26,22 +26,23 @@ env/
 *.pyo
 *.pyd
 src/reservoirgrid.egg-info
+
 # ==========================================
 # Heavy Research Results & Plots
 # ==========================================
-# Mapped from Examples/ to research/
+# Examples/ to research/
 research/Input_Discretization/results/
 research/Weight_Landscape/results/
 research/HyperParameter/results_lorenz/rc_search/results/
 
-# Mapped plot directories
+# Plot directories
 research/Input_Discretization/Plots/3DPlots/
 research/Input_Discretization/Plots/HeatMaps/
 
 # ==========================================
-# Datasets (From your source code)
+# Datasets 
 # ==========================================
-# Protects your 800MB local binary data bank
+
 src/reservoirgrid/datasets/**/*.npy
 src/reservoirgrid/datasets/**/*.csv
 src/reservoirgrid/datasets/**/*.CSV
