@@ -1,15 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# IDEs
 .vscode/
-venv/
 .idea/
 .vs/
-.spyproject/
-Learning_Pytorch/__pycache__
-reservoirgrid/__pycache__
-reservoirgrid/datasets/__pycache__
-reservoirgrid/helpers/__pycache__
-reservoirgrid/models/__pycache__
-Examples/Input_Discretization/results
-Examples/Weight_Landscape/results
-Examples/Input_Discretization/Plots/3DPlots
-Examples/Input_Discretization/Plots/HeatMaps
-Examples/HyperParameter/results_lorenz/rc_search/results
+
+# Environments
+.venv/
+env/
+venv/
+
+# heavy research data and outputs
+src/reservoirgrid/datasets/**/*.npy
+src/reservoirgrid/datasets/**/*.csv
+src/reservoirgrid/datasets/**/*.CSV
+research/**/*.pkl
+research/**/*.png
+research/**/*.html
+research/**/*.CSV
+
+# Folders To Ignore, Big and clunky setup data. 
+research/HyperParameter/results_lorenz
+research/Input_Discretization/Plots/HeatMaps/
+research/Input_Discretization/Plots/3DPlots
