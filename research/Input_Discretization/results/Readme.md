@@ -1,0 +1,1 @@
+This results are with grid of parameters. Does not contain output weights. Only matrics calculated here is just RMSE.
