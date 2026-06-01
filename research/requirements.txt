@@ -1,0 +1,12 @@
+dysts~=0.95
+pyts~=0.13.0
+ripser~=0.6.12
+persim~=0.3.8
+natsort~=8.4.0
+reservoirpy
+hyperopt
+joblib
+tqdm
+kaleido~=0.2.1
+ipykernel
+pyqt5
