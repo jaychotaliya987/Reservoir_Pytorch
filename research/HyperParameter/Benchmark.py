@@ -4,10 +4,7 @@ Benchmark: ReservoirGrid (GPU-batched) vs ReservoirPy (CPU-sequential)
 Same dataset, same metric, timed end-to-end.
 Run this from the ReservoirGrid root directory.
 """
-
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+import optuna
 
 import time
 import warnings
@@ -19,7 +16,7 @@ from reservoirgrid.helpers import viz
 from reservoirgrid.models.Reservoir import Reservoir
 
 # ── Shared data ───────────────────────────────────────────────────────────────
-dataset = np.load("reservoirgrid/datasets/Chaotic/Lorenz.npy", allow_pickle=True)
+dataset = np.load("src/reservoirgrid/datasets/Chaotic/Lorenz.npy", allow_pickle=True)
 dataset = utils.normalize_data(dataset[15][1])
 X_train, X_val, Y_train, Y_val = utils.split(dataset)
 
@@ -50,6 +47,7 @@ rg_best  = rg_model.optimize(
     direction="minimize",
     n_trials=75,
     batch_size=3,
+    sampler= optuna.samplers.TPESampler(seed=42)
 )
 
 rg_preds = rg_model.predict(initial_input=Y_train, steps=len(Y_val))
@@ -76,8 +74,8 @@ from reservoirpy.nodes import Reservoir as RPyReservoir, Ridge
 from reservoirpy.hyper import research
 rpy.set_seed(42)
 
-CONFIG_PATH = "Examples/HyperParameter/config.json"
-REPORT_PATH = "Examples/HyperParameter/results_lorenz_bench"
+CONFIG_PATH = "research/HyperParameter/config.json"
+REPORT_PATH = "research/HyperParameter/results_lorenz_bench"
 
 def rpy_objective(dataset, config, *, N, sr, lr, input_scaling, ridge,
                   input_connectivity, rc_connectivity):

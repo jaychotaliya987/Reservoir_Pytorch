@@ -5,9 +5,6 @@ import torch
 import random
 
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,8 +16,8 @@ from reservoirgrid.helpers import utils
 from reservoirgrid.helpers import viz
 
 
-path = "Examples/Weight_Landscape/results/Chaotic/"
-save_path = "Examples/Weight_Landscape/Plots/SingleMetric/"
+path = "research/Weight_Landscape/results/Chaotic/"
+save_path = "research/Weight_Landscape/Plots/SingleMetric/"
 system_name = "Lorenz"
 system_path = os.path.join(path, system_name)
 

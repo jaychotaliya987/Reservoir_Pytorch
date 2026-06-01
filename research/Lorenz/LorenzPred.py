@@ -3,11 +3,6 @@ import torch
 
 from sklearn.model_selection import train_test_split 
 from dysts.flows import Lorenz
-
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 from reservoirgrid.datasets import LorenzAttractor
 from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils
@@ -26,7 +21,7 @@ else:
 
 def from_dysts(length = 1000, newgen = False):
     if not newgen:
-        Dataset = np.genfromtxt("reservoirgrid/datasets/Lorenz.csv", delimiter=",", skip_header=1)[:,1:]
+        Dataset = np.genfromtxt("src/reservoirgrid/datasets/Lorenz.csv", delimiter=",", skip_header=1)[:,1:]
         Dataset = (Dataset - Dataset.min()) / (Dataset.max() - Dataset.min()) *2 -1
         inputs, targets = torch.tensor(Dataset[:-1], dtype = torch.float32), torch.tensor(Dataset[1:], dtype = torch.float32)
         train_inputs, test_inputs = train_test_split(inputs, shuffle=False, test_size=0.2, random_state=42)

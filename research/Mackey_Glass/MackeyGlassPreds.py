@@ -1,12 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
-import sys
-import os
-#matplotlib.use('qt5Agg')  # Use a non-interactive backend for saving plots
 
-# Ensure the correct path to MackeyGlass module
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from reservoirgrid.datasets import MackeyGlassDataset
 from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils

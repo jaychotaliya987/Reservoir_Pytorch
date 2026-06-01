@@ -3,9 +3,6 @@ import gc
 import tracemalloc
 
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import torch
 import numpy as np
 import pickle
@@ -41,7 +38,7 @@ print(f"Device: {device}\n")
 for system in system_list:
     system_name = "/Chaotic/" + system
     print(f"Selected system: {system_name}")
-    path = "../../reservoirgrid/datasets" + system_name + ".npy"
+    path = "../../src/reservoirgrid/datasets" + system_name + ".npy"
 
     if not os.path.exists(path):
         print("System does not exist. Generate first.")

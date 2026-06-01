@@ -5,11 +5,6 @@ import matplotlib
 matplotlib.use("Qt5agg")
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 from reservoirgrid.models import CQOscRes
 from reservoirgrid.datasets import SineSquare
 

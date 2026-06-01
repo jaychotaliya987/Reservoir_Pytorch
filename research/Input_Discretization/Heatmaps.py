@@ -15,11 +15,6 @@ import json
 from matplotlib.colors import LogNorm, Normalize
 from tqdm import tqdm
 import plotly.graph_objects as go
-
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-# Configure professional logging pipeline
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -292,7 +287,7 @@ def plot_and_save_heatmap(
 
 def process_single_location(
     target_pkl_dir: str,
-    output_base_dir: str = "Examples/Input_Discretization/Plots/HeatMaps/",
+    output_base_dir: str = "research/Input_Discretization/Plots/HeatMaps/",
     file_workers: int = 4,
     entry_workers: int = 24,
     force_recompute: bool = False,  # set True to ignore cache and rerun
@@ -519,5 +514,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         process_single_location(sys.argv[1])
     else:
-        process_single_location("Examples/Input_Discretization/results/Chaotic/HalvorsenLHS", force_recompute=True)
+        process_single_location("research/Input_Discretization/results/Chaotic/HalvorsenLHS", force_recompute=True)
         

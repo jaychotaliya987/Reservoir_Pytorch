@@ -1,7 +1,3 @@
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import torch
 import numpy as np
 import optuna
@@ -10,7 +6,7 @@ from reservoirgrid.helpers import utils
 from reservoirgrid.models.Reservoir import Reservoir
 from reservoirgrid.helpers import viz
 
-dataset = np.load("reservoirgrid/datasets/Chaotic/Thomas.npy", allow_pickle=True)
+dataset = np.load("src/reservoirgrid/datasets/Chaotic/Thomas.npy", allow_pickle=True)
 dataset = utils.normalize_data(dataset[15][1])
 
 X_train, X_val, Y_train, Y_val = utils.split(dataset) 

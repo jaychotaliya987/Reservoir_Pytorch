@@ -146,7 +146,7 @@ def objective(dataset, config, *,
 # ─────────────────────────────────────────────────────────────────────────────
 # Run search
 # ─────────────────────────────────────────────────────────────────────────────
-path = "Examples/HyperParameter"
+path = "research/HyperParameter"
 CONFIG_PATH =  path + "/config.json"
 REPORT_PATH = path + "/results_lorenz"
 

@@ -12,10 +12,6 @@ from sklearn.model_selection import train_test_split
 
 #------------------ system imports ---------------------#
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-#------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils
 from reservoirgrid.helpers import viz
@@ -26,7 +22,7 @@ from reservoirgrid.helpers import reservoir_tests
 system_name = "/Chaotic/" + "Rossler"
 
 print(f"selected {system_name}")
-path = "reservoirgrid/datasets" + system_name + ".npy"
+path = "src/reservoirgrid/datasets" + system_name + ".npy"
 if not os.path.exists(path):
     print("System does not exist, Generate First")
     exit()

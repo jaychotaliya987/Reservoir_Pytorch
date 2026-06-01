@@ -1,7 +1,4 @@
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
@@ -132,7 +129,7 @@ def compute_dying_percentage(metric_name, top_n=10):
 
 ###------------- Computation -------------###
 
-path = "Examples/Input_Discretization/results/Chaotic/"
+path = "research/Input_Discretization/results/Chaotic/"
 save_path = "Plots/SingleMetric/LHS"
 system_name = "RosslerLHS"
 system_path = os.path.join(path, system_name)

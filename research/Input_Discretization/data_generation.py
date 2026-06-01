@@ -8,16 +8,12 @@ from dysts import flows
 
 #------------------ system imports ---------------------#
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join('../..')))
-
-#------------------ reservoirgrid imports ---------------------#
 from reservoirgrid.helpers import utils
 #--------------------------------------------------------------#
 
 
 # Selecting the system/type of system
-systems = pd.read_csv("../../reservoirgrid/datasets/systems.csv")
+systems = pd.read_csv("../../src/reservoirgrid/datasets/systems.csv")
 RegimeSwitching = systems[systems['Type']=='Chaotic']
 
 
@@ -26,7 +22,7 @@ point_per_period = np.linspace(start=5, stop=100, num= 20) # discretizing 20 tim
 for index, row in RegimeSwitching.iterrows():
     system_name = row['System']
     system_type = row['Type']
-    path = f"../../reservoirgrid/datasets/{system_type}/{system_name}.npy"
+    path = f"../../src/reservoirgrid/datasets/{system_type}/{system_name}.npy"
 
     if not os.path.exists(path):
         print(f"{system_name} does not exist. Generating...")

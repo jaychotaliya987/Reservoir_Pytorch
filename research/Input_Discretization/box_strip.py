@@ -1,5 +1,4 @@
 import os
-import sys
 import pickle
 import numpy as np
 import pandas as pd
@@ -7,8 +6,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from natsort import natsorted
 
-# Add your project path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from reservoirgrid.helpers import chaos_utils, utils
 from joblib import Parallel, delayed
 
@@ -103,7 +100,7 @@ def plot_box_strip(df, system_name, save_path, x_var='LeakyRate', y_var='KLDiver
     plt.close()
 
 # Main processing
-path = "Examples/Input_Discretization/results/"  # path to directory of system class
+path = "research/Input_Discretization/results/"  # path to directory of system class
 types = os.listdir(path)  # Stores types of system
 
 for system_type in types:
@@ -134,7 +131,7 @@ for system_type in types:
         ])
         
         # Create plots for different parameter combinations
-        save_path = os.path.join("Examples/Input_Discretization/Plots/SingleMetric", system_type, system)
+        save_path = os.path.join("research/Input_Discretization/Plots/SingleMetric", system_type, system)
         
         print(f"Saving Plots...")
         plot_box_strip(df, system, save_path, x_var='SpectralRadius', y_var='LyapunovTime', log_scale=True)
