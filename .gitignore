@@ -25,7 +25,7 @@ env/
 *.pyc
 *.pyo
 *.pyd
-
+src/reservoirgrid.egg-info
 # ==========================================
 # Heavy Research Results & Plots
 # ==========================================
