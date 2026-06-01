@@ -12,7 +12,7 @@ from reservoirgrid.models import Reservoir
 from reservoirgrid.helpers import utils, viz, reservoir_tests, chaos_utils
 
 path = "Examples\\Input_Discretization\\results\\Chaotic\\"
-system_name = "LorenzLHS"
+system_name = "ThomasLHS"
 PP = 75
 system_path = path + system_name
 
@@ -68,4 +68,4 @@ viz.plot_multidimensional_3d(
     metrics_dict = metrics_dict, 
     save_html=True, 
     path="Examples/Input_Discretization/Plots/3DPlots/" 
-)
+).show
